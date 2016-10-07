@@ -87,4 +87,149 @@ int test_helper(const char *file_in,const char *file_out,const char *test_name){
 				}
 		}
 }
-				
+
+void test_512_random(void){
+		int err = test_helper("random_512.in","random_512.out","test_512_random");
+		if(err == -1){
+				CU_FAIL("Error while testing. See stderr\n");
+		}
+		else if(err == 0){
+				CU_ASSERT(1);
+		}
+		else{
+				CU_ASSERT(0);
+		}
+}
+
+void test_300_random(void){
+		int err = test_helper("random_300.in","random_300.out","test_300_random");
+		if(err == -1){
+				CU_FAIL("Error while testing. See stderr\n");
+		}
+		else if(err == 0){
+				CU_ASSERT(1);
+		}
+		else{
+				CU_ASSERT(0);
+		}
+}
+
+void test_1000_random(void){
+		int err = test_helper("random_1000.in","random_1000.out","test_1000_random");
+		if(err == -1){
+				CU_FAIL("Error while testing. See stderr\n");
+		}
+		else if(err == 0){
+				CU_ASSERT(1);
+		}
+		else{
+				CU_ASSERT(0);
+		}
+}
+
+void test_512_zero(void){
+		int err = test_helper("zero_512.in","zero_512.out","test_512_zero");
+		if(err == -1){
+				CU_FAIL("Error while testing. See stderr\n");
+		}
+		else if(err == 0){
+				CU_ASSERT(1);
+		}
+		else{
+				CU_ASSERT(0);
+		}
+}
+
+void test_300_zero(void){
+		int err = test_helper("zero_300.in","zero_300.out","test_300_zero");
+		if(err == -1){
+				CU_FAIL("Error while testing. See stderr\n");
+		}
+		else if(err == 0){
+				CU_ASSERT(1);
+		}
+		else{
+				CU_ASSERT(0);
+		}
+}
+
+void test_1000_zero(void){
+		int err = test_helper("zero_1000.in","zero_1000.out","test_1000_zero");
+		if(err == -1){
+				CU_FAIL("Error while testing. See stderr\n");
+		}
+		else if(err == 0){
+				CU_ASSERT(1);
+		}
+		else{
+				CU_ASSERT(0);
+		}
+}
+
+void test_512_ones(void){
+		int err = test_helper("ones_512.in","ones_512.out","test_512_ones");
+		if(err == -1){
+				CU_FAIL("Error while testing. See stderr\n");
+		}
+		else if(err == 0){
+				CU_ASSERT(1);
+		}
+		else{
+				CU_ASSERT(0);
+		}
+}
+
+void test_300_ones(void){
+		int err = test_helper("ones_300.in","ones_300.out","test_300_ones");
+		if(err == -1){
+				CU_FAIL("Error while testing. See stderr\n");
+		}
+		else if(err == 0){
+				CU_ASSERT(1);
+		}
+		else{
+				CU_ASSERT(0);
+		}
+}
+
+void test_1000_ones(void){
+		int err = test_helper("ones_1000.in","ones_1000.out","test_1000_ones");
+		if(err == -1){
+				CU_FAIL("Error while testing. See stderr\n");
+		}
+		else if(err == 0){
+				CU_ASSERT(1);
+		}
+		else{
+				CU_ASSERT(0);
+		}
+}
+
+void test_no_bytes(void){
+		int err = test_helper("no_bytes.in","no_bytes.out","test_no_bytes");
+		if(err == -1){
+				CU_FAIL("Error while testing. See stderr\n");
+		}
+		else if(err == 0){
+				CU_ASSERT(1);
+		}
+		else{
+				CU_ASSERT(0);
+		}
+}
+
+int main(void){
+		if(CUE_SUCCESS != CU_initialize_registry())
+				return CU_get_error();
+		CU_pSuite pSuite = NULL;
+		pSuite = CU_add_suite("Suite de test",NULL,NULL);
+		if(NULL == pSuite){
+				CU_cleanup_registry();
+				return CU_get_error();
+		}
+		/** ADD TESTS HERE **/
+		
+		CU_basic_run_tests();
+		CU_basic_show_failures(CU_get_failure_list());
+}
+
