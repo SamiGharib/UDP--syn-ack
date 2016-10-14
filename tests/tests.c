@@ -7,21 +7,21 @@
 #include <errno.h>
 #include <sys/wait.h>
 
-#include "../sender.h"
-#include "../receiver.h"
+#include "../src/sender.h"
+//#include "../receiver.h"
 
-const char *port = "12345";
-const char *host = "::1";
-const int saved_stdin = dup(fileno(stdin));
-const int saved_stdout = dup(fileno(stdout));
+char *port = "12345";
+char *host = "::1";
 
 int test_helper(const char *file_in,const char *file_out,const char *test_name){
+		int saved_stdin = dup(fileno(stdin));
+		int saved_stdout = dup(fileno(stdout));
 		int fd_in = open(file_in,O_RDONLY);
 		if(fd_in == -1){
 				fprintf(stderr,"Error open %s : %s\n",file_in,strerror(errno));
 				return -1;;
 		}
-		int fd_out = open(file_out,O_WRONLY | O_CREAT);
+		int fd_out = open(file_out,O_WRONLY | O_CREAT, 0666);
 		if(fd_out == -1){
 				fprintf(stderr,"Error open %s : %s\n",file_out,strerror(errno));
 				return -1;;
@@ -36,45 +36,79 @@ int test_helper(const char *file_in,const char *file_out,const char *test_name){
 				fprintf(stderr,"Error dup2 stdout %s : %s\n",file_out,strerror(errno));
 				return -1;;
 		}
-		pthread thread[2];
-		int err = pthread_create(&th[0],NULL,(void *)&receive_helper,NULL);
-		if(err != 0){
-				fprintf(stderr,"Error while creating thread for test %s (function receive)\n",test_name);
+		/* Lancement des process */
+		int pid = fork();
+		if(pid == 0){
+				char *arg[2]={host,port};
+				err = execve("../src/sender",arg,NULL);
+				if(err == -1){
+						fprintf(stderr,"Error w/ execve() for lauching sender in test %s : %s\n",test_name,strerror(errno));
+						return -1;
+				}
 				return -1;
 		}
-		err =pthread_create(&th[1],NULL,(void *)&send_helper,NULL);
-		if(err != 0){
-			fprintf(stderr,"Error while creating thread for test %s (function send)\n",test_name);	
-			return -1;
+		else{
+				int pid2 = fork();
+				if(pid2 == 0){
+						char *arg2[2]={host,port};
+						err = execve("../src/receiver",arg2,NULL);
+						if(err == -1){
+								fprintf(stderr,"Error w/ execve() for lauching receiver in test %s : %s\n",test_name,strerror(errno));
+								return -1;
+						}
+						return -1;
+				}
+				else{
+						int status1,status2;
+						if(waitpid(pid,&status1,0) == -1){
+								fprintf(stderr,"Error w/ waitpid() for the sender in test %s\n",test_name);
+								return -1;
+						}
+						if(waitpid(pid2,&status2,0) == -1){
+								fprintf(stderr,"Error w/ waitpid() for the receiver in test %s\n",test_name);
+								return -1;
+						}
+						if(!WIFEXITED(status1) || !WIFEXITED(status2)){
+								fprintf(stderr,"The receiver or the sender did not end with exit() or return statement in test %s\n",test_name);
+								return -1;
+						}
+						if(WEXITSTATUS(status1) == -1){
+								fprintf(stderr, "The sender exit with an error in test %s\n",test_name);
+								return -1;
+						}
+						if(WEXITSTATUS(status2) == -1){
+								fprintf(stderr,"The receiver exit with and error in test %s\n",test_name);
+								return -1;
+						}
+						/* COMPARAISON DES FICHIERS */
+						dup2(saved_stdin,fileno(stdin));
+						dup2(saved_stdout,fileno(stdout));
+						close(fd_in);
+						close(fd_out);
+						FILE *f_in = fopen(file_in,"r");
+						if(f_in == NULL){
+							fprintf(stderr,"Error fopen %s : %s\n",file_in,strerror(errno));
+							return -1;
+						}
+						FILE *f_out = fopen(file_out,"r");
+						if(f_out == NULL){
+							fprintf(stderr,"Error fopen %s : %s\n",file_out,strerror(errno));
+							return -1;
+						}	
+						char c1 = getc(f_in);
+						char c2 = getc(f_out);
+						while((c1 != EOF) && (c2 != EOF) && (c1 == c2)){
+							c1 = getc(f_in);
+							c2 = getc(f_out);
+						}
+						fclose(f_in);
+						fclose(f_out);
+						if(c1 == c2)
+							return 1;
+						else
+							return 0;
+					}
 		}
-		err = pthread_join(th[0],NULL);
-		err = pthread_join(th[1],NULL);
-		dup2(saved_stdin,fileno(stdin));
-		dup2(saved_stdout,fileno(stdout));
-		close(fd_in);
-		close(fd_out);
-		FILE *f_in = fopen(file_in,"r");
-		if(f_in == NULL){
-				fprintf(stderr,"Error fopen %s : %s\n",file_in,strerror(errno));
-				return -1;
-		}
-		FILE *f_out = fopen(file_out,"r");
-		if(f_out == NULL){
-				fpritnf(stderr,"Error fopen %s : %s\n",file_out,strerror(errno));
-				return -1;
-		}	
-		char c1 = getc(f_in);
-		char c2 = getc(f_out);
-		while((c1 != EOF) && (c2 != EOF) && (c1 == c2)){
-				c1 = getc(f_in);
-				c2 = getc(f_out);
-		}
-		fclose(f_in);
-		fclose(f_out);
-		if(c1 == c2)
-				return 1;
-		else
-				return 0;
 }
 
 void test_512_random(void){

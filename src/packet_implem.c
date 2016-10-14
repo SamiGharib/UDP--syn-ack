@@ -27,11 +27,7 @@ struct __attribute__((__packed__)) pkt {
 
 pkt_t* pkt_new()
 {
-		pkt_t *pkt =(pkt_t *)malloc(sizeof(pkt_t));
-		if(pkt == NULL)
-				return NULL;
-		pkt->payload = NULL;
-		return pkt;
+		return calloc(1,sizeof(pkt_t));
 }
 
 void pkt_del(pkt_t *pkt)
@@ -42,7 +38,7 @@ void pkt_del(pkt_t *pkt)
 		}
 }
 
-pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
+pkt_status_code pkt_decode(const uint8_t *data, const size_t len, pkt_t *pkt)
 {	
 		if(len < 12)
 				return E_UNCONSISTENT;
@@ -59,7 +55,7 @@ pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
 		return PKT_OK;
 }
 
-pkt_status_code pkt_encode(const pkt_t* pkt, char *buf, size_t *len)
+pkt_status_code pkt_encode(const pkt_t* pkt, uint8_t *buf, size_t *len)
 {
 		memset((void *)buf,0,*len);
 		pkt_t pkt_tmp = *pkt;
@@ -108,9 +104,9 @@ uint32_t pkt_get_crc   (const pkt_t* pkt)
 		return pkt->crc;
 }
 
-const char* pkt_get_payload(const pkt_t* pkt)
+const uint8_t* pkt_get_payload(const pkt_t* pkt)
 {
-		return (char *)pkt->payload;
+		return (uint8_t *)pkt->payload;
 }
 
 
@@ -162,7 +158,7 @@ pkt_status_code pkt_set_crc(pkt_t *pkt, const uint32_t crc)
 }
 
 pkt_status_code pkt_set_payload(pkt_t *pkt,
-							    const char *data,
+							    const uint8_t *data,
 								const uint16_t length)
 {
 		pkt_status_code ret_code;
@@ -197,8 +193,8 @@ int main(void){
 		}
 		uint8_t *buf =(uint8_t *)malloc(11*sizeof(uint8_t));
 		read(fd,(void *)buf,11);
-		pkt_set_payload(pkt,(char *)buf,11);
-		char *buf2 = (char *)malloc(3*sizeof(uint32_t)+11*sizeof(uint8_t));
+		pkt_set_payload(pkt,(uint8_t *)buf,11);
+		uint8_t *buf2 = (uint8_t *)malloc(3*sizeof(uint32_t)+11*sizeof(uint8_t));
 		size_t length = 3*sizeof(uint32_t)+11*sizeof(uint8_t);
 		pkt_status_code ret_code = pkt_encode(pkt,buf2,&length);
 		int fd_out = open("output",O_WRONLY | O_CREAT);
