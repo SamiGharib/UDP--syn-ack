@@ -10,8 +10,8 @@
 #include "../sender.h"
 #include "../receiver.h"
 
-int port = 12345;
-const char *host = "::1"
+const char *port = "12345";
+const char *host = "::1";
 const int saved_stdin = dup(fileno(stdin));
 const int saved_stdout = dup(fileno(stdout));
 
@@ -36,56 +36,45 @@ int test_helper(const char *file_in,const char *file_out,const char *test_name){
 				fprintf(stderr,"Error dup2 stdout %s : %s\n",file_out,strerror(errno));
 				return -1;;
 		}
-		int pid=fork();
-		if(pid == -1){
-				fprintf(stderr,"Error fork %s : %s\n",test_name,strerror(errno));
-				return -1;;
+		pthread thread[2];
+		int err = pthread_create(&th[0],NULL,(void *)&receive_helper,NULL);
+		if(err != 0){
+				fprintf(stderr,"Error while creating thread for test %s (function receive)\n",test_name);
+				return -1;
 		}
-		if(pid == 0){
-				receiver(host,port);
+		err =pthread_create(&th[1],NULL,(void *)&send_helper,NULL);
+		if(err != 0){
+			fprintf(stderr,"Error while creating thread for test %s (function send)\n",test_name);	
+			return -1;
 		}
-		else{
-				int status;
-				sender(host,port);
-				pid_t w = waitpid(pid,&status,0);
-				if(w == -1){
-						fprintf(stderr,"Error waitpid %s : %s\n",test_name,strerror(errno));
-						return -1;;
-				}
-				if(WIEXITED(status)){
-						dup2(saved_stdin,fileno(stdin));
-						dup2(saved_stdout,fileno(stdout));
-						close(fd_in);
-						close(fd_out);
-						FILE *f_in = fopen(file_in,"r");
-						if(f_in == NULL){
-								fprintf(stderr,"Error fopen %s : %s\n",file_in,strerror(errno));
-								return -1;
-						}
-						FILE *f_out = fopen(file_out,"r");
-						if(f_out == NULL){
-								fpritnf(stderr,"Error fopen %s : %s\n",file_out,strerror(errno));
-								return -1;
-						}
-						char c1 = getc(f_in);
-						char c2 = getc(f_out);
-						while((c1 != EOF) && (c2 != EOF) && (c1 == c2)){
-								c1 = getc(f_in);
-								c2 = getc(f_out);
-						}
-						fclose(f_in);
-						fclose(f_out);
-						if(c1 == c2)
-								return 1;
-						else
-								return 0;
-				}
-				else{
-					if(WIFSIGNALED(status))
-						fprintf(stderr,"Child process killed by signal in %s\n",test_name);
-					return -1;;
-				}
+		err = pthread_join(th[0],NULL);
+		err = pthread_join(th[1],NULL);
+		dup2(saved_stdin,fileno(stdin));
+		dup2(saved_stdout,fileno(stdout));
+		close(fd_in);
+		close(fd_out);
+		FILE *f_in = fopen(file_in,"r");
+		if(f_in == NULL){
+				fprintf(stderr,"Error fopen %s : %s\n",file_in,strerror(errno));
+				return -1;
 		}
+		FILE *f_out = fopen(file_out,"r");
+		if(f_out == NULL){
+				fpritnf(stderr,"Error fopen %s : %s\n",file_out,strerror(errno));
+				return -1;
+		}	
+		char c1 = getc(f_in);
+		char c2 = getc(f_out);
+		while((c1 != EOF) && (c2 != EOF) && (c1 == c2)){
+				c1 = getc(f_in);
+				c2 = getc(f_out);
+		}
+		fclose(f_in);
+		fclose(f_out);
+		if(c1 == c2)
+				return 1;
+		else
+				return 0;
 }
 
 void test_512_random(void){
