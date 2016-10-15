@@ -15,6 +15,9 @@ typedef enum {
 
 /* Taille maximale permise pour le payload */
 #define MAX_PAYLOAD_SIZE 512
+/* Taille maximal des packet */
+#define HEADER_CRC_SIZE 12
+#define MAX_PACKET_SIZE MAX_PAYLOAD_SIZE+HEADER_CRC_SIZE
 /* Taille maximale de Window */
 #define MAX_WINDOW_SIZE 31
 

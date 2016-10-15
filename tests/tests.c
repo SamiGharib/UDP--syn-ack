@@ -7,12 +7,14 @@
 #include <errno.h>
 #include <sys/wait.h>
 
-#include "../src/sender.h"
+#include "../src/sender_help.h"
+#include "../src/packet_interface.h"
 //#include "../receiver.h"
 
 char *port = "12345";
 char *host = "::1";
 
+/* GENERAL TEST */
 int test_helper(const char *file_in,const char *file_out,const char *test_name){
 		int saved_stdin = dup(fileno(stdin));
 		int saved_stdout = dup(fileno(stdout));
@@ -241,6 +243,68 @@ void test_no_bytes(void){
 		}
 }
 
+/* TEST OF THE SENDER AUXILIARIES FUNCTIONS */
+void test_prepare_packet_null(void){
+		pkt_t *pkt = prepare_packet(NULL,1,0);
+		if(pkt == NULL){
+				CU_FAIL();
+		}
+		else{
+				CU_ASSERT_EQUAL(pkt_get_window(pkt),1);
+				CU_ASSERT_PTR_EQUAL(pkt_get_payload(pkt),NULL);
+				CU_ASSERT_EQUAL(pkt_get_length(pkt),0);
+				pkt_del(pkt);
+		}
+}
+
+void test_prepare_packet_in_length(void){
+		uint8_t *data = (uint8_t *)malloc(250*sizeof(uint8_t));
+		if(data == NULL){
+				fprintf(stderr,"Not enough memory for test_prepare_in_length\n");
+				CU_FAIL();
+		}
+		pkt_t *pkt = prepare_packet(data,1,250*sizeof(uint8_t));
+		if(pkt == NULL){
+				CU_FAIL();
+		}
+		else{
+				CU_ASSERT_PTR_NOT_NULL(pkt_get_payload(pkt));
+				CU_ASSERT_EQUAL(pkt_get_length(pkt),250);
+				pkt_del(pkt);
+				free(data);
+		}
+}
+
+void test_prepare_packet_just_length(void){
+		uint8_t *data = (uint8_t *)malloc(512*sizeof(uint8_t));
+		if(data == NULL){
+				fprintf(stderr,"Not enough memory for test_prepare_in_length\n");
+				CU_FAIL();
+		}
+		pkt_t *pkt = prepare_packet(data,1,512*sizeof(uint8_t));
+		if(pkt == NULL){
+				CU_FAIL();
+		}
+		else{
+				CU_ASSERT_PTR_NOT_NULL(pkt_get_payload(pkt));
+				CU_ASSERT_EQUAL(pkt_get_length(pkt),512);
+				pkt_del(pkt);
+				free(data);
+		}
+}
+				
+void test_prepare_packet_out_length(void){
+		uint8_t *data = (uint8_t *)malloc(600*sizeof(uint8_t));
+		if(data == NULL){
+				fprintf(stderr,"Not enough memory for test_prepare_packet_out_length\n");
+				CU_FAIL();
+		}
+		pkt_t *pkt = prepare_packet(data,1,600*sizeof(uint8_t));
+		CU_ASSERT_PTR_NULL(pkt);
+		pkt_del(pkt);
+		free(data);
+}
+
 int main(void){
 		if(CUE_SUCCESS != CU_initialize_registry())
 				return CU_get_error();
@@ -251,7 +315,13 @@ int main(void){
 				return CU_get_error();
 		}
 		/** ADD TESTS HERE **/
-		
+		if(CU_add_test(pSuite,"Test prepare packet w/ payload NULL",test_prepare_packet_null) == NULL ||
+						CU_add_test(pSuite,"Test prepare packet w/ payload 250",test_prepare_packet_in_length) == NULL||
+						CU_add_test(pSuite,"Test prepare packet w/ payload 512",test_prepare_packet_just_length)== NULL ||
+						CU_add_test(pSuite,"Test prepare packet w/ payload 600",test_prepare_packet_out_length) == NULL){
+				CU_cleanup_registry();
+				return CU_get_error();
+		}
 		CU_basic_run_tests();
 		CU_basic_show_failures(CU_get_failure_list());
 }

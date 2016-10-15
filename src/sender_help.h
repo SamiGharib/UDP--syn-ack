@@ -15,7 +15,9 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
+#include <sys/time.h>
 
+#include "packet_interface.h"
 #include "real_address.h"
 #include "create_socket.h"
 #endif
@@ -33,16 +35,6 @@ struct frame{
 		uint8_t *payload;
 		uint32_t crc;
 };
-
-struct __attribute__((__packed__)) pkt{
-		uint32_t window:5,
-				 type:3,
-				 seqnum:8,
-				 length:16;
-		uint32_t timestamp;
-		uint8_t *payload;
-		uint32_t crc;
-}pkt_t;
 #endif
 /**
   * Method that send data to dest_addr by the port "port".
@@ -51,6 +43,7 @@ struct __attribute__((__packed__)) pkt{
   *		This means that the last acknowledgment have to been received before
   *		closing the connection.
   */
-void send_data(const char *dest_addr,int port);
+int send_data(const char *dest_addr,int port);
 
+pkt_t *prepare_packet(const uint8_t *data,uint8_t window,uint16_t length);
 #endif

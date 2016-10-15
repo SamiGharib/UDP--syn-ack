@@ -8,23 +8,35 @@ CFLAGS += -fstack-protector-all
 CFLAGS += -D_POSIX_C_SOURCE=201112L -D_XOPEN_SOURCE
 
 CLIB += -lz
+CLIB += -L$(HOME)/include/lib
 CLIB += -lcunit
 
-default: sender.o receiver.o
-	gcc $(CFLAGS) -o sender src/sender.o $(CLIB)
+defaul: sender.o receiver.o sender_helper.o
+	gcc $(CFLAGS) -o sender sender.o sender_help.o $(CLIB)
 	gcc $(CFLAGS) -o receiver src/receiver.o $(CLIB)
 
-tests: sender receiver tests.o
-	gcc $(CFLAGS) $L(HOME)/local/lib -o tests_ex tests.o $(CLIB)
+tests: sender_help.o tests.o real_address.o create_socket.o packet_interface.o
+	gcc $(CFLAGS) -o tests_ex tests.o sender_help.o real_address.o create_socket.o packet_interface.o $(CLIB)
 	./tests_ex
 
-compile:
-	gcc $(CFLAGS) -c src/sender.c $(CLIB)
+tests.o:
 	gcc $(CFLAGS) -I$(HOME)/local/include -c tests/tests.c $(CLIB)
+sender_help.o:
+	gcc $(CLFAGS) -c src/sender_help.c $(CLIB)
 
-.PHONY: clean rebuild
+sender.o:
+	gcc $(CFLAGS) -c src/sender.c $(CLIB)
+
+real_address.o:
+	gcc $(CFLAGS) -c src/real_address.c $(CLIB)
+
+create_socket.o:
+	gcc $(CFLAGS) -c src/create_socket.c $(CLIB)
+
+packet_interface.o:
+	gcc $(CFLAGS) -c src/packet_interface.c $(CLIB)
+.PHONY: clean 
 
 clean:
-	rm *.o tests_ex sender receiver
+	rm *.o tests_ex
 
-rebuild: clean compile

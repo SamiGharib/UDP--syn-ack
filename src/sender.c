@@ -1,5 +1,4 @@
-#include "sender.h"
-#include <unistd.h>
+#include "sender_help.h"
 
 int main(int argc, char *argv[]){
 		int opt = getopt(argc,argv,"f:");
@@ -17,5 +16,5 @@ int main(int argc, char *argv[]){
 		}
 		char *hostname = argv[optind];
 		int port = atoi(argv[optind+1]);
-		send_data(hostname,port);
+		return send_data(hostname,port);
 }

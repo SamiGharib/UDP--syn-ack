@@ -57,6 +57,8 @@ pkt_status_code pkt_decode(const uint8_t *data, const size_t len, pkt_t *pkt)
 
 pkt_status_code pkt_encode(const pkt_t* pkt, uint8_t *buf, size_t *len)
 {
+		if(*len < 512*sizeof(uint8_t)+3*sizeof(uint32_t))
+				return E_NOMEM;
 		memset((void *)buf,0,*len);
 		pkt_t pkt_tmp = *pkt;
 		uint16_t payload_size = pkt_get_length(pkt);
@@ -164,42 +166,19 @@ pkt_status_code pkt_set_payload(pkt_t *pkt,
 		pkt_status_code ret_code;
 		if(length > MAX_PAYLOAD_SIZE)
 				return ret_code=E_LENGTH;
+		if(data == NULL)
+				return PKT_OK;
 		if(pkt->payload == NULL){
 				pkt->payload = (uint8_t *)malloc(length*sizeof(uint8_t));
 				if(pkt->payload == NULL)
 						return ret_code = E_NOMEM;
 		}
 		else{
-				printf("A\n");
 			void *ptr = realloc((void *)pkt->payload,length*sizeof(uint8_t));
 				memset((void *)ptr,0,length*sizeof(uint8_t));
 				pkt->payload = (uint8_t *)ptr;
 		}
 		memcpy((void *)pkt->payload,(void *)data,length);
 		ret_code = pkt_set_length(pkt,length);
-		return ret_code;
-}
-
-int main(void){
-		pkt_t *pkt = pkt_new();
-		pkt_set_type(pkt,1);
-		pkt_set_window(pkt,15);
-		pkt_set_seqnum(pkt,123);
-		pkt_set_timestamp(pkt,10);
-		int fd = open("payload",O_RDONLY);
-		if(fd == -1){
-				fprintf(stderr,"Error opening file payload\n");
-				return -1;
-		}
-		uint8_t *buf =(uint8_t *)malloc(11*sizeof(uint8_t));
-		read(fd,(void *)buf,11);
-		pkt_set_payload(pkt,(uint8_t *)buf,11);
-		uint8_t *buf2 = (uint8_t *)malloc(3*sizeof(uint32_t)+11*sizeof(uint8_t));
-		size_t length = 3*sizeof(uint32_t)+11*sizeof(uint8_t);
-		pkt_status_code ret_code = pkt_encode(pkt,buf2,&length);
-		int fd_out = open("output",O_WRONLY | O_CREAT);
-		write(fd_out,(void *)buf2,3*sizeof(uint32_t)+11*sizeof(uint8_t));
-		close(fd);
-		close(fd_out);
 		return ret_code;
 }
