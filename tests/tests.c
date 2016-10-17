@@ -9,6 +9,7 @@
 
 #include "../src/sender_help.h"
 #include "../src/packet_interface.h"
+#include "../src/queue.h"
 //#include "../receiver.h"
 
 char *port = "12345";

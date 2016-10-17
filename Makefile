@@ -15,8 +15,8 @@ defaul: sender.o receiver.o sender_helper.o
 	gcc $(CFLAGS) -o sender sender.o sender_help.o $(CLIB)
 	gcc $(CFLAGS) -o receiver src/receiver.o $(CLIB)
 
-tests: sender_help.o tests.o real_address.o create_socket.o packet_interface.o
-	gcc $(CFLAGS) -o tests_ex tests.o sender_help.o real_address.o create_socket.o packet_interface.o $(CLIB)
+tests: sender_help.o tests.o real_address.o create_socket.o packet_interface.o queue.o
+	gcc $(CFLAGS) -o tests_ex tests.o sender_help.o real_address.o create_socket.o packet_interface.o queue.o $(CLIB)
 	./tests_ex
 
 tests.o:
@@ -35,6 +35,9 @@ create_socket.o:
 
 packet_interface.o:
 	gcc $(CFLAGS) -c src/packet_interface.c $(CLIB)
+
+queue.o:
+	gcc $(CFLAGS) -c src/queue.c
 .PHONY: clean 
 
 clean:

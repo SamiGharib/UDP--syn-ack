@@ -20,6 +20,8 @@
 #include "packet_interface.h"
 #include "real_address.h"
 #include "create_socket.h"
+#include "queue.h"
+
 #endif
 
 #ifndef __SENDER_H_
