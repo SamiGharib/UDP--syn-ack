@@ -1,5 +1,5 @@
 #include "sender_help.h"
-#include "packet_interface.h"
+#include "../shared/packet_interface.h"
 
 int window_receiver=1;
 uint8_t next_seqnum=0;

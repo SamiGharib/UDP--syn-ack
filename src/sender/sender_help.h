@@ -17,9 +17,9 @@
 #include <string.h>
 #include <sys/time.h>
 
-#include "packet_interface.h"
-#include "real_address.h"
-#include "create_socket.h"
+#include "../shared/packet_interface.h"
+#include "../shared/real_address.h"
+#include "../shared/create_socket.h"
 #endif
 
 #ifndef __SENDER_H_

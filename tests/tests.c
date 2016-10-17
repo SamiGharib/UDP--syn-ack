@@ -7,8 +7,8 @@
 #include <errno.h>
 #include <sys/wait.h>
 
-#include "../src/sender_help.h"
-#include "../src/packet_interface.h"
+#include "../src/sender/sender_help.h"
+#include "../src/shared/packet_interface.h"
 //#include "../receiver.h"
 
 char *port = "12345";
