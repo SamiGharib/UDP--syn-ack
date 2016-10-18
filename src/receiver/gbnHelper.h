@@ -19,25 +19,18 @@
 pkt_status_code selective_repeat(int fd, int sfd);
 
 /**
- * The goal of this function is to make the caracter stuffing on a data buffer.
- * @param db : it's the data buffer, the one who need bit stuffing.
- * The pointer is gonna be modified for the new buffer (witch is gonna be bigger - in
- * theory - if I don't fuck it up !)! The old buffer is gonna be free.
- * @param len : the size fo the input buffer (in byte)
- * @return the new size (in byte) of the data buffer db after the character stuffing or -1 in case of error
+ * The goal of this function is to manage the packet that has juste been receive by the network
+ * @param buffer : the buffer containing all the packet who've already bben received, if the is some place,
+ * it's gonna be NULL
+ * @param startWin : the current first emplacement of the sliding windows
+ * @param data : the char extracted from the file who's ontaining all the data
+ * @param len : sizeof the data in byte
+ * @param fd : the file descriptor into witch the data are outputed
+ * @return : the value returned is the status of the application :
+ *      -1 : the packet is broken
+ *      0 : everything is ok packet has been incorporated
+ *      1 : the packet is ok, but already into the buffer
  * */
-int charStuffing(unsigned char ** db, int len);
+int treatPkt(pkt_t **buffer, uint8_t startWin, char * data, size_t len, int fd);
 
-/**
- * The goal of this function is to remove the caracter stuffing on a data
- * buffer.
- * @param db : it's the data buffer who's gonna contain the data to unstuff, the pointer is gonna
- * be move at the end of the function to point to the new buffer, the one containing the unstuffed
- * data.
- * @param len : it's the size of the inputed buffer (in byte)
- * @return the new size (in byte) of the data buffer after the caracter unstuffing or -1 in case of
- * error / corupted buffer
- * */
-int charUnstuffing(unsigned char ** db, int len);
-
-#endif //RECEIVER_BGNHELPER_H
+#endif
