@@ -1,12 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <sys/select.h>
-#include <string.h>
-#include <netinet/in.h>
-#include <malloc.h>
 
-#include "../shared/packet_interface.h"
 #include "gbnHelper.h"
 
 #define MAXWINDOWS 32
@@ -18,13 +10,13 @@
  * */
 pkt_status_code selective_repeat(int fd, int sfd){
 
-    pkt_t *buffer = malloc(sizeof(struct pkt)*BUFSIZE);
+    pkt_t *buffer = malloc(sizeof(pkt_t)*BUFSIZE);
     int ret = -4, sel;
     uint8_t startBuffer = 0;
     uint8_t curSeqNum = 0;
     fd_set srfd;
     struct timeval tv;
-    char buff[1024];
+    unsigned char buff[1024];
     uint16_t headBuffer[2];
     ssize_t readed;
 
@@ -41,10 +33,10 @@ pkt_status_code selective_repeat(int fd, int sfd){
             if(readed != 8)
                 return E_NOHEADER;
             //copying the head
-            buff[0] = ((char*)headBuffer)[0];
-            buff[1] = ((char*)headBuffer)[1];
-            buff[2] = ((char*)headBuffer)[2];
-            buff[3] = ((char*)headBuffer)[3];
+            buff[0] = ((unsigned char*)headBuffer)[0];
+            buff[1] = ((unsigned char*)headBuffer)[1];
+            buff[2] = ((unsigned char*)headBuffer)[2];
+            buff[3] = ((unsigned char*)headBuffer)[3];
             readed = read(sfd, buff+4, len+4);
             if(readed == -1)
                 return E_UNCONSISTENT;
@@ -122,7 +114,7 @@ int sendACK(int sfd, uint8_t curNumSeq, uint32_t timestamp){
     pkt_set_timestamp(pkt, timestamp);
     //emit the packet here
     size_t len = 12 + pkt_get_length(pkt);
-    char buff[len];
+    unsigned char buff[len];
     pkt_encode(pkt, buff, &len);
     ssize_t ret = write(sfd, buff, len);
     pkt_del(pkt);
