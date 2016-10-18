@@ -214,7 +214,7 @@ int send_data(const char *dest_addr,int port){
 				}
 				/* Receiving ACK */
 				if(FD_ISSET(sfd,&readfds)){
-						nBytes = recv(sfd,(void *)toReceive,sizeof(toReceive),0);
+						nBytes = recv(sfd,(void *)toReceive,3*sizeof(uint32_t),0);
 						if(nBytes == -1){
 								fprintf(stderr,"Error while receiving ack : %s\n",strerror(errno));
 								return -1;
