@@ -27,66 +27,6 @@ uint32_t getCRC(const pkt_t * pkt){
 	return (uint32_t)crc;
 }
 
-int main( int argc, char** argv){
-
-    //init of the packet
-    pkt_t *pkt = pkt_new();
-    pkt->type = PTYPE_DATA;
-    pkt->windows = 0b10001;
-    pkt->seqnum = 0b00010001;
-    pkt_set_timestamp(pkt, 1);
-    pkt_set_payload(pkt, "Hello world !", 13);
-
-
-
-    //actual tests - 1st packet
-    printf(" ==================== Initial packet :\n");
-    printf("Type: \t\t\t\t%s\n", pkt_get_type(pkt) == PTYPE_DATA ? "data" : "ack");
-    printf("Windows: \t\t\t%#02x\n", pkt_get_window(pkt));
-    printf("Sequence number: \t\t%#02x\n", pkt_get_seqnum(pkt));
-    printf("Timestamp:  \t\t\t%#08x\n", pkt_get_timestamp(pkt));
-    printf("Length: \t\t\t%#04x - %d\n", pkt_get_length(pkt), pkt_get_length(pkt));
-    printf("CRC: \t\t\t\r%"PRIu32"\n", pkt->crc);
-    printf("Payload: \t\t\t%s\n", pkt_get_payload(pkt));
-
-    printf("\n-----------------\n\n");
-
-	//transfer to the seccond - encoding
-	pkt_t * seccond = pkt_new();
-	char * buff = (char*)malloc(sizeof(char)*25);
-	size_t size = 25;
-	pkt_status_code ret = pkt_encode(pkt, buff, &size);
-    size = 25;
-
-    //shit again ..
-    FILE *f=fopen("out.seg","w");
-    size_t i = fwrite(buff, 1,25, f);
-    fclose(f);
-    i++;
-
-    //decoding
-
-    ret = pkt_decode(buff, size, seccond);
-    ret++;
-
-    printf("\n-----------------\n\n");
-
-	printf("===================== Retransmitted packet :\n");
-	printf("Type: \t\t\t\t%s\n", pkt_get_type(seccond) == PTYPE_DATA ? "data" : "ack");
-    printf("Windows: \t\t\t%#02x\n", pkt_get_window(seccond));
-    printf("Sequence number: \t\t%#02x\n", pkt_get_seqnum(seccond));
-    printf("Timestamp:  \t\t\t%#08x\n", pkt_get_timestamp(seccond));
-    printf("Length: \t\t\t%#04x - %d\n", pkt_get_length(pkt), pkt_get_length(seccond));
-    printf("CRC: \t\t\t\t%"PRIu32"\n", seccond->crc);
-    printf("Payload: \t\t\t%s\n", pkt_get_payload(seccond));
-
-	free(buff);
-
-    //removing of the packet
-    pkt_del(pkt);
-    return 0;
-}
-
 /* Extra code */
 /* Your code will be inserted here */
 
@@ -143,7 +83,8 @@ pkt_status_code pkt_encode(const pkt_t* pkt, char *buf, size_t *len)
     *len = 0;
     uint8_t *header = (uint8_t*)pkt;
     memcpy(buf, header, 8);//dest src byte
-    memcpy(buf+8, pkt_get_payload(pkt), pkt_get_length(pkt));//TODO manage the null case
+    if(pkt_get_length(pkt)!=0)
+        memcpy(buf+8, pkt_get_payload(pkt), pkt_get_length(pkt));//TODO manage the null case
     *len += 12+pkt_get_length(pkt);
 
     uint32_t yoloCRC = htonl(getCRC(pkt));
