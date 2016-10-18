@@ -5,6 +5,13 @@
 #define BUFSIZE 32
 
 /*
+ * TODO:
+ *      receiving and decoding correctly the data
+ *      windows set to  0 into the first packet of data ??
+ *      MAX_WINDOWS_SIZE must be 32 !!
+ * */
+
+/*
  * fd : file descriptor where we're gonna write the output
  * sfd : socket file descritor
  * */
@@ -16,37 +23,30 @@ pkt_status_code selective_repeat(int fd, int sfd){
     uint8_t curSeqNum = 0;
     fd_set srfd;
     struct timeval tv;
-    unsigned char buff[1024];
-    uint16_t headBuffer[2];
+    unsigned char buff[MAX_PACKET_SIZE];
     ssize_t readed;
+    size_t bufsize;
 
     do {
         FD_ZERO(&srfd);
-        FD_SET(fd, &srfd);
+        FD_SET(sfd, &srfd);
         tv.tv_sec = 2;
         tv.tv_usec = 0;
-        sel = select(fd+1, &srfd, NULL, NULL, &tv);
-        if(sel > 0 && FD_ISSET(fd,&srfd)){
-            memset(&buff, 0, 1024);
-            readed = read(sfd, headBuffer, 4);
-            size_t len = (size_t)ntohs(headBuffer[1]);
-            if(readed != 8)
-                return E_NOHEADER;
-            //copying the head
-            buff[0] = ((unsigned char*)headBuffer)[0];
-            buff[1] = ((unsigned char*)headBuffer)[1];
-            buff[2] = ((unsigned char*)headBuffer)[2];
-            buff[3] = ((unsigned char*)headBuffer)[3];
-            readed = read(sfd, buff+4, len+4);
+        sel = select(sfd+1, &srfd, NULL, NULL, &tv);
+        if(sel > 0 && FD_ISSET(sfd,&srfd)){
+            memset(&buff, 0, MAX_PACKET_SIZE);
+            readed = read(sfd, buff, MAX_PACKET_SIZE);
+            size_t len = (size_t)ntohs(buff[1]);
+            bufsize = MAX_PACKET_SIZE;
             if(readed == -1)
                 return E_UNCONSISTENT;
             pkt_t * pkt = pkt_new();
             len+=12;
-            if(pkt_encode(pkt, buff, &len) != PKT_OK) {
+            if(pkt_decode(buff, bufsize, pkt) != PKT_OK) {
                 pkt_del(pkt);
                 continue;
             }
-            ret = treatPkt(&buffer, (uint8_t *)&startBuffer, &curSeqNum, pkt, fd);
+            ret = treatPkt(&buffer, &startBuffer, &curSeqNum, pkt, fd);
             if(ret >= 0)
                 sendACK(sfd, curSeqNum, pkt_get_timestamp(pkt));
 
@@ -109,7 +109,7 @@ int sendACK(int sfd, uint8_t curNumSeq, uint32_t timestamp){
     pkt_t *pkt = pkt_new();
     pkt_set_length(pkt, 0);
     pkt_set_type(pkt, PTYPE_ACK);
-    pkt_set_seqnum(pkt, (const uint8_t) ((curNumSeq - 1)%32));
+    pkt_set_seqnum(pkt, (const uint8_t) (curNumSeq%32));//TODO
     pkt_set_window(pkt, MAXWINDOWS);
     pkt_set_timestamp(pkt, timestamp);
     //emit the packet here
