@@ -12,16 +12,6 @@
 #include <fcntl.h>
 /* Your code will be inserted here */
 
-struct __attribute__((__packed__)) pkt {
-	uint32_t window:5,
-			 type:3,
-			 seqnum:8,
-			 length:16;
-	uint32_t timestamp;
-	uint8_t *payload;
-	uint32_t crc;
-};
-
 /* Extra code */
 /* Your code will be inserted here */
 

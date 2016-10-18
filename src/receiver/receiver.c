@@ -28,7 +28,7 @@ int main(int argc, char ** argv){
         }
     }
 
-    if (optind+2 < argc) {
+    if (optind+1 >= argc) {
         host = "::1";
         port = 12345;
         fprintf(stderr, "Usage: receiver [-f X] <host> <port>\n");

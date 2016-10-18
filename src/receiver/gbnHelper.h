@@ -2,6 +2,14 @@
 // Created by pierre on 16/10/16.
 //
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/select.h>
+#include <string.h>
+#include <netinet/in.h>
+#include <malloc.h>
+
 #include "../shared/packet_interface.h"
 
 #ifndef RECEIVER_BGNHELPER_H
