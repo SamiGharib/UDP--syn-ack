@@ -65,7 +65,15 @@ void resend_data(int sfd){
 				cmp.tv_sec = curr_time.tv_sec - (itr->tv)->tv_sec;
 				cmp.tv_usec = curr_time.tv_usec - (itr->tv)->tv_usec;
 				if(cmp.tv_sec > RTT_MAX.tv_sec || (cmp.tv_sec == RTT_MAX.tv_sec && cmp.tv_usec > RTT_MAX.tv_usec )){
-						RTT_MAX.tv_usec += (1000000*cmp.tv_sec + cmp.tv_usec)/5;
+						RTT_MAX.tv_usec += (1000000*cmp.tv_sec + cmp.tv_usec)/INCREM_TIME_OUT;
+						if(RTT_MAX.tv_usec > 1000000){
+								RTT_MAX.tv_sec ++;
+								RTT_MAX.tv_usec = 0;
+						}
+						if(RTT_MAX.tv_sec > MAX_TIME_SEC || (RTT_MAX.tv_sec == MAX_TIME_SEC && RTT_MAX.tv_usec > MAX_TIME_USEC)){
+										RTT_MAX.tv_sec = MAX_TIME_SEC;
+										RTT_MAX.tv_usec = MAX_TIME_USEC;
+						}
 						size_t pkt_length = pkt_get_length((itr->packet)) + 3*sizeof(uint32_t);
 						uint8_t buf[pkt_length];
 						memset((void *)buf,0,pkt_length);
@@ -106,7 +114,7 @@ void acknowledge(uint16_t next_expected_seqnum){
 						else{
 								tmp.tv_sec = curr_time.tv_sec - (itr->tv)->tv_sec;
 								tmp.tv_usec = curr_time.tv_usec - (itr->tv)->tv_usec;
-								RTT_MAX.tv_usec -= (1000000*tmp.tv_sec + tmp.tv_usec)/10;
+								RTT_MAX.tv_usec -= (1000000*tmp.tv_sec + tmp.tv_usec)/DECREM_TIME_OUT;
 								if(RTT_MAX.tv_usec < 0){
 										RTT_MAX.tv_sec --;
 										RTT_MAX.tv_usec = 999999;

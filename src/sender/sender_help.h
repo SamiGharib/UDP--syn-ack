@@ -41,6 +41,10 @@ struct frame{
 };
 #define TIME_SEC 2
 #define TIME_USEC 500000
+#define MAX_TIME_SEC 6
+#define MAX_TIME_USEC 0
+#define DECREM_TIME_OUT 10 /* 10 percent */
+#define INCREM_TIME_OUT 5 /* 20 percent */
 #endif
 /**
   * Method that send data to dest_addr by the port "port".
