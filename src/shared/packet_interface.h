@@ -13,6 +13,16 @@ typedef enum {
 	PTYPE_ACK = 2,
 } ptypes_t;
 
+struct __attribute__((__packed__)) pkt {//13 bytes
+    uint8_t windows : 5;
+    ptypes_t type : 3;//WARNING ! windows is the first one on inginious
+    uint8_t seqnum : 8;
+    uint16_t length : 16;//en bytes !!
+    uint32_t timestamp : 32;
+    char * data;
+    uint32_t crc : 32;
+};
+
 /* Taille maximale permise pour le payload */
 #define MAX_PAYLOAD_SIZE 512
 /* Taille maximale de Window */

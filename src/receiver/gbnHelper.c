@@ -1,15 +1,16 @@
 #include <stdio.h>
-#include <stdlib.h
+#include <stdlib.h>
 #include <unistd.h>
 #include <sys/select.h>
 #include <string.h>
 #include <netinet/in.h>
 #include <malloc.h>
 
+#include "../shared/packet_interface.h"
 #include "gbnHelper.h"
 
+#define MAXWINDOWS 32
 #define BUFSIZE 32
-#define MAXWIN 32
 
 /*
  * fd : file descriptor where we're gonna write the output
@@ -17,8 +18,9 @@
  * */
 pkt_status_code selective_repeat(int fd, int sfd){
 
-    pkt_t *buffer = malloc(sizeof(pkt_t)*BUFSIZE);//managment of the
-    int startBuffer = 0, ret, sel, i;
+    pkt_t *buffer = malloc(sizeof(struct pkt)*BUFSIZE);
+    int ret = -4, sel;
+    uint8_t startBuffer = 0;
     uint8_t curSeqNum = 0;
     fd_set srfd;
     struct timeval tv;
@@ -35,10 +37,10 @@ pkt_status_code selective_repeat(int fd, int sfd){
         if(sel > 0 && FD_ISSET(fd,&srfd)){
             memset(&buff, 0, 1024);
             readed = read(sfd, headBuffer, 4);
-            uint16_t len = ntohs(headBuffer[1]);
+            size_t len = (size_t)ntohs(headBuffer[1]);
             if(readed != 8)
                 return E_NOHEADER;
-            //copuing the head
+            //copying the head
             buff[0] = ((char*)headBuffer)[0];
             buff[1] = ((char*)headBuffer)[1];
             buff[2] = ((char*)headBuffer)[2];
@@ -48,11 +50,11 @@ pkt_status_code selective_repeat(int fd, int sfd){
                 return E_UNCONSISTENT;
             pkt_t * pkt = pkt_new();
             len+=12;
-            if(pkt_encode(pkt, buff, &(size_t)len) != PKT_OK) {
+            if(pkt_encode(pkt, buff, &len) != PKT_OK) {
                 pkt_del(pkt);
                 continue;
             }
-            ret = treatPkt(&buffer, &(uint8_t)startBuffer, &curSeqNum, pkt, fd);
+            ret = treatPkt(&buffer, (uint8_t *)&startBuffer, &curSeqNum, pkt, fd);
             if(ret >= 0)
                 sendACK(sfd, curSeqNum, pkt_get_timestamp(pkt));
 
@@ -90,7 +92,8 @@ int treatPkt(pkt_t ** buffer, uint8_t *startBuf, uint8_t *curSeqNum, pkt_t * pkt
         if(pkt_get_length(buffer[(*startBuf)+i]) == 0 )
             eof =1;
         //outputting the packets
-        write(fd, pkt_get_payload(buffer[(*startBuf + i) % 32]), pkt_get_length(buffer[(*startBuf + i) % 32]));
+        ssize_t yolo = write(fd, pkt_get_payload(buffer[(*startBuf + i) % 32]), pkt_get_length(buffer[(*startBuf + i) % 32]));
+        yolo ++;//TODO find another fix
 
         //freeing the packets
         pkt_del(buffer[(*startBuf + i) % 32]);
@@ -115,7 +118,7 @@ int sendACK(int sfd, uint8_t curNumSeq, uint32_t timestamp){
     pkt_set_length(pkt, 0);
     pkt_set_type(pkt, PTYPE_ACK);
     pkt_set_seqnum(pkt, (const uint8_t) ((curNumSeq - 1)%32));
-    pkt_set_window(pkt, MAXWIN);
+    pkt_set_window(pkt, MAXWINDOWS);
     pkt_set_timestamp(pkt, timestamp);
     //emit the packet here
     size_t len = 12 + pkt_get_length(pkt);
@@ -123,7 +126,7 @@ int sendACK(int sfd, uint8_t curNumSeq, uint32_t timestamp){
     pkt_encode(pkt, buff, &len);
     ssize_t ret = write(sfd, buff, len);
     pkt_del(pkt);
-    if(ret != len)
+    if((size_t)ret != len)
         return -1;
     return 0;
 }

@@ -9,15 +9,6 @@
 /* Extra #includes */
 /* Your code will be inserted here */
 
-struct __attribute__((__packed__)) pkt {//13 bytes
-    uint8_t windows : 5;
-    ptypes_t type : 3;//WARNING ! windows is the first one on inginious
-    uint8_t seqnum : 8;
-    uint16_t length : 16;//en bytes !!
-    uint32_t timestamp : 32;
-    char * data;
-    uint32_t crc : 32;
-};
 
 //return the crcr at the host format
 uint32_t getCRC(const pkt_t * pkt){

@@ -15,6 +15,8 @@ add_library(gbnHelper STATIC src/receiver/gbnHelper.c)
 
 target_link_libraries(packet_interface z)
 
+target_link_libraries(gbnHelper packet_interface)
+
 target_link_libraries(receiver packet_interface)
 target_link_libraries(receiver real_adress)
 target_link_libraries(receiver wait_for_client)
