@@ -16,10 +16,14 @@
 #include <errno.h>
 #include <string.h>
 #include <sys/time.h>
+#include <signal.h>
+#include <setjmp.h>
 
 #include "../shared/packet_interface.h"
 #include "../shared/real_address.h"
 #include "../shared/create_socket.h"
+#include "../shared/queue.h"
+
 #endif
 
 #ifndef __SENDER_H_
@@ -35,6 +39,8 @@ struct frame{
 		uint8_t *payload;
 		uint32_t crc;
 };
+#define TIME_SEC 2
+#define TIME_USEC 500000
 #endif
 /**
   * Method that send data to dest_addr by the port "port".
@@ -45,5 +51,5 @@ struct frame{
   */
 int send_data(const char *dest_addr,int port);
 
-pkt_t *prepare_packet(const uint8_t *data,uint8_t window,uint16_t length);
+pkt_t *prepare_packet(const uint8_t *data,uint16_t length,struct timeval *tv);
 #endif
