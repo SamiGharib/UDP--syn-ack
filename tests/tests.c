@@ -7,9 +7,9 @@
 #include <errno.h>
 #include <sys/wait.h>
 
-#include "../src/sender_help.h"
-#include "../src/packet_interface.h"
-#include "../src/queue.h"
+#include "../src/sender/sender_help.h"
+#include "../src/shared/packet_interface.h"
+#include "../src/shared/queue.h"
 //#include "../receiver.h"
 
 char *port = "12345";
@@ -246,7 +246,7 @@ void test_no_bytes(void){
 
 /* TEST OF THE SENDER AUXILIARIES FUNCTIONS */
 void test_prepare_packet_null(void){
-		pkt_t *pkt = prepare_packet(NULL,1,0);
+		pkt_t *pkt = prepare_packet(NULL,0,NULL);
 		if(pkt == NULL){
 				CU_FAIL();
 		}
@@ -264,7 +264,8 @@ void test_prepare_packet_in_length(void){
 				fprintf(stderr,"Not enough memory for test_prepare_in_length\n");
 				CU_FAIL();
 		}
-		pkt_t *pkt = prepare_packet(data,1,250*sizeof(uint8_t));
+		struct timeval *tv = NULL;
+		pkt_t *pkt = prepare_packet(data,250*sizeof(uint8_t),tv);
 		if(pkt == NULL){
 				CU_FAIL();
 		}
@@ -282,7 +283,8 @@ void test_prepare_packet_just_length(void){
 				fprintf(stderr,"Not enough memory for test_prepare_in_length\n");
 				CU_FAIL();
 		}
-		pkt_t *pkt = prepare_packet(data,1,512*sizeof(uint8_t));
+		struct timeval *tv = NULL;
+		pkt_t *pkt = prepare_packet(data,512*sizeof(uint8_t),tv);
 		if(pkt == NULL){
 				CU_FAIL();
 		}
@@ -300,7 +302,8 @@ void test_prepare_packet_out_length(void){
 				fprintf(stderr,"Not enough memory for test_prepare_packet_out_length\n");
 				CU_FAIL();
 		}
-		pkt_t *pkt = prepare_packet(data,1,600*sizeof(uint8_t));
+		struct timeval *tv = NULL;
+		pkt_t *pkt = prepare_packet(data,600*sizeof(uint8_t),tv);
 		CU_ASSERT_PTR_NULL(pkt);
 		pkt_del(pkt);
 		free(data);

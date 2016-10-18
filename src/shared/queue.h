@@ -50,4 +50,13 @@ void re_enqueue(queue_t *head,queue_t *tail,queue_t *elem);
   * @post return the first element inserted in the queue and remove it from the queue
   */
 queue_t *dequeue(queue_t *head,queue_t *tail);
+
+/**
+  * This function shall remove an arbitrary given element from the queue (even the head or the tail)
+  * @param head: This is a pointer to the head of the queue. It should not be NULL
+  * @param tail: This is a pointer to the tail of the queue. It should not be NULL
+  * @param elem: This is a pointer to the element to remove from the queue. It should not be NULL
+  * @return -
+  */
+void remove_queue(queue_t *head,queue_t *tail,queue_t *elem);
 #endif
