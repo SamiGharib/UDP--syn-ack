@@ -15,6 +15,9 @@ typedef enum {
 
 /* Taille maximale permise pour le payload */
 #define MAX_PAYLOAD_SIZE 512
+/* Taille maximal des packet */
+#define HEADER_CRC_SIZE 12
+#define MAX_PACKET_SIZE MAX_PAYLOAD_SIZE+HEADER_CRC_SIZE
 /* Taille maximale de Window */
 #define MAX_WINDOW_SIZE 31
 
@@ -57,7 +60,7 @@ void pkt_del(pkt_t*);
  * @return: Un code indiquant si l'opÃ©ration a rÃ©ussi ou reprÃ©sentant
  *         l'erreur rencontrÃ©e.
  */
-pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt);
+pkt_status_code pkt_decode(const uint8_t *data, const size_t len, pkt_t *pkt);
 
 /*
  * Encode une struct pkt dans un buffer, prÃªt Ã  Ãªtre envoyÃ© sur le rÃ©seau
@@ -70,7 +73,7 @@ pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt);
  * @return: Un code indiquant si l'opÃ©ration a rÃ©ussi ou E_NOMEM si
  *         le buffer est trop petit.
  */
-pkt_status_code pkt_encode(const pkt_t*, char *buf, size_t *len);
+pkt_status_code pkt_encode(const pkt_t*, uint8_t *buf, size_t*len);
 
 /* Accesseurs pour les champs toujours prÃ©sents du paquet.
  * Les valeurs renvoyÃ©es sont toutes dans l'endianness native
@@ -85,7 +88,7 @@ uint32_t pkt_get_crc      (const pkt_t*);
 /* Renvoie un pointeur vers le payload du paquet, ou NULL s'il n'y
  * en a pas.
  */
-const char* pkt_get_payload(const pkt_t*);
+const uint8_t* pkt_get_payload(const pkt_t*);
 
 /* Setters pour les champs obligatoires du paquet. Si les valeurs
  * fournies ne sont pas dans les limites acceptables, les fonctions
@@ -103,8 +106,9 @@ pkt_status_code pkt_set_crc      (pkt_t*, const uint32_t crc);
  * @length: Le nombre d'octets composant le payload
  * @POST: pkt_get_length(pkt) == length */
 pkt_status_code pkt_set_payload(pkt_t*,
-                                const char *data,
+                                const uint8_t *data,
                                 const uint16_t length);
 
 
 #endif  /* __PACKET_INTERFACE_H_ */
+
