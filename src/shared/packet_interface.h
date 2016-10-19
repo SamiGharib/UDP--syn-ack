@@ -35,10 +35,10 @@ typedef enum {
 } pkt_status_code;
 
 struct __attribute__((__packed__)) pkt {
-	uint32_t window:5,
-			type:3,
-			seqnum:8,
-			length:16;
+	uint8_t window:5;
+	ptypes_t type:3;
+	uint8_t seqnum;
+	uint16_t length;
 	uint32_t timestamp;
 	uint8_t *payload;
 	uint32_t crc;
