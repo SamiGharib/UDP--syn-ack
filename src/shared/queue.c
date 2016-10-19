@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "queue.h"
 
 queue_t *new_queue(){
@@ -22,6 +23,7 @@ queue_t *enqueue(queue_t **head,queue_t **tail,pkt_t *packet,struct timeval *tv)
 		}
 		else{
 				new_head->next = *head;
+				(*head)->previous = new_head;
 				*head = new_head;
 		}	
 		return new_head;
@@ -63,6 +65,7 @@ void remove_queue(queue_t **head,queue_t **tail,queue_t *elem){
 				queue_del(elem);
 		}
 		else{
+				fprintf(stderr,"prev : %p , elem->next %p\n",elem->previous,elem->next);
 				(elem->previous)->next = elem->next;
 				(elem->next)->previous = elem->previous;
 				queue_del(elem);
