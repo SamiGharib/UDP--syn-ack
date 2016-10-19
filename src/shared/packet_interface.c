@@ -60,10 +60,12 @@ pkt_status_code pkt_encode(const pkt_t* pkt, uint8_t *buf, size_t *len)
 		if(*len < pkt->length*sizeof(uint8_t)+3*sizeof(uint32_t))
 				return E_NOMEM;
 		memset((void *)buf,0,*len);
-		pkt_t pkt_tmp = *pkt;
+		pkt_t pkt_tmp;
+		memcpy((void *)&pkt_cmp,(void *)pkt,sizeof(pkt));
 		uint16_t payload_size = pkt_get_length(pkt);
 		/* Converting field into Network Byte order */
-		pkt_tmp.length = htons(pkt_tmp.length);
+		if(pkt_tmp.length != 0)
+			pkt_tmp.length = htons(pkt_tmp.length);
 		/* Writing to buffer */
 		memcpy((void *)buf,(void *)&pkt_tmp,2*sizeof(uint32_t));
 		memcpy(((void *)buf)+2*sizeof(uint32_t),(void *)pkt_tmp.payload,payload_size);
