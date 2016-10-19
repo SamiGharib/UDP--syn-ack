@@ -68,17 +68,6 @@ pkt_status_code pkt_decode(const uint8_t *data, const size_t len, pkt_t *pkt) {
 }
 
 pkt_status_code pkt_encode(const pkt_t *pkt, uint8_t *buf, size_t *len) {
-
-    printf(" ==================== Initial packet :\n");
-    printf("Type: \t\t\t\t%s\n", pkt_get_type(pkt) == PTYPE_DATA ? "data" : "ack");
-    printf("Windows: \t\t\t%#02x\n", pkt_get_window(pkt));
-    printf("Sequence number: \t\t%#02x\n", pkt_get_seqnum(pkt));
-    printf("Timestamp:  \t\t\t%#08x\n", pkt_get_timestamp(pkt));
-    printf("Length: \t\t\t%#04x - %d\n", pkt_get_length(pkt), pkt_get_length(pkt));
-    printf("Payload: \t\t\t%s\n", pkt_get_payload(pkt));
-    printf(" ==================== ");
-    fflush(stdout);
-
     if (pkt == NULL)return E_UNCONSISTENT;
     if (*len < 12)return E_NOHEADER;
     if (*len < (size_t) 12 + pkt_get_length(pkt))return E_NOMEM;
@@ -87,8 +76,6 @@ pkt_status_code pkt_encode(const pkt_t *pkt, uint8_t *buf, size_t *len) {
     memcpy(buf, header, 8);//dest src byte
     memcpy(buf + 8, pkt_get_payload(pkt), pkt_get_length(pkt));//TODO manage the null case
     *len += 12 + pkt_get_length(pkt);
-
-    printf("CRC: %d\n", getCRC(pkt));
 
     uint32_t yoloCRC = htonl(getCRC(pkt));
     memcpy(buf + 8 + pkt_get_length(pkt), &yoloCRC, 4);
