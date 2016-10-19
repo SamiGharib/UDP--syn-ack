@@ -105,12 +105,14 @@ void resend_data(int sfd) {
                 return;
             }
             free_to_go--;
+            itr = tail->previous;
             queue_t *toEnqueue = dequeue(head, tail);
-            itr = tail;
             re_enqueue(head, tail, toEnqueue);
-        } else
+        } 
+		else
             return;
     }
+	return;
 }
 
 /**
@@ -121,6 +123,7 @@ void resend_data(int sfd) {
   */
 void acknowledge(uint16_t next_expected_seqnum) {
     if (DEBUG) {
+			fprintf(stdout,"----------------------\n");
         fprintf(stdout, "Starting checking for packet w/ seqnum < %d\n", next_expected_seqnum);
     }
     queue_t *itr = head;
@@ -160,6 +163,9 @@ void acknowledge(uint16_t next_expected_seqnum) {
         }
         itr = itr->next;
     }
+	if(DEBUG){
+			fprintf(stdout,"----------------------\n");
+	}
 }
 
 /**
@@ -217,7 +223,7 @@ int send_data(const char *dest_addr,int port){
 		uint8_t last_sent[MAX_PACKET_SIZE];
 		memset((void *)toSend,0,MAX_PACKET_SIZE);
 		memset((void *)toReceive,0,MAX_PACKET_SIZE);
-		ssize_t last_sent_length;
+		ssize_t last_sent_length=0;
 		/* Sets for the select() call */
 		fd_set readfds;
 		fd_set writefds;
@@ -225,6 +231,7 @@ int send_data(const char *dest_addr,int port){
 		FD_ZERO(&writefds);
 		ssize_t nBytes;
 		while(1){
+				/* TERMINATED THE CONNECTION */
 				if(end_of_data && head == NULL && tail == NULL){
 						if(DEBUG){
 								fprintf(stdout,"End of data -> sending end-of-communication segment\n");
@@ -243,8 +250,6 @@ int send_data(const char *dest_addr,int port){
 						}
 						return 0;
 				}
-				memset((void *)last_sent,0,MAX_PACKET_SIZE);
-				last_sent_length = 0;
 				FD_SET(fileno(stdin),&readfds);
 				FD_SET(sfd,&readfds);
 				FD_SET(sfd,&writefds);
@@ -318,6 +323,9 @@ int send_data(const char *dest_addr,int port){
 											fprintf(stdout,"Sending packet w/ seqnum %d w/ length %d\n",pkt_get_seqnum(pkt),pkt_get_length(pkt));
 									}
 									send(sfd,toSend,len*sizeof(uint8_t),0);
+									memset((void *)last_sent,0,MAX_PACKET_SIZE);
+									memcpy((void *)last_sent,(void *)toSend,len*sizeof(uint8_t));
+									last_sent_length = len*sizeof(uint8_t);
 									if(enqueue(head,tail,pkt,tv) == NULL){
 											fprintf(stderr,"No memory to store packet sent (for eventual re-sending). Terminating.\n");
 											return -1;
