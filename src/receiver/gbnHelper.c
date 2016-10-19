@@ -44,8 +44,8 @@ pkt_status_code selective_repeat(int fd, int sfd){
 
             int DBG;
             if((DBG = pkt_decode(buff, bufsize, pkt)) != PKT_OK) {
-                fprintf(stdout, "error %d\n", DBG);
-                fflush(stdout);
+                fprintf(stderr, "Error %d\n", DBG);
+                fflush(stderr);
                 pkt_del(pkt);
                 continue;
             }
