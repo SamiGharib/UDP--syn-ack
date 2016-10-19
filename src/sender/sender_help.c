@@ -261,7 +261,11 @@ int send_data(const char *dest_addr,int port){
 								return -1;
 						}
 						pkt_t *pkt = pkt_new();
-						if(pkt_decode(toReceive,nBytes*sizeof(uint8_t),pkt) == PKT_OK){
+						pkt_status_code ret =pkt_decode(toReceive,nBytes*sizeof(uint8_t),pkt);
+						if(DEBUG){
+								fprintf(stdout,"ret code for pkt_decode : %d\n",ret);
+						}
+						if(ret== PKT_OK){
 							if(DEBUG){
 									fprintf(stdout,"seqnum of the ack : %d\n",pkt_get_seqnum(pkt));
 									fprintf(stdout,"window of the ack : %d\n",pkt_get_window(pkt));
