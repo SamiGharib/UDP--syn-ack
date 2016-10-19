@@ -55,5 +55,5 @@ struct frame{
   */
 int send_data(const char *dest_addr,int port);
 
-pkt_t *prepare_packet(const uint8_t *data,uint16_t length,struct timeval *tv);
+pkt_t *prepare_packet(const uint8_t *data,uint16_t length,struct timeval **tv);
 #endif

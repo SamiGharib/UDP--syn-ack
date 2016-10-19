@@ -34,7 +34,7 @@ void queue_del(queue_t *queue);
   *		  If the list is not empty, then <head> point to a new element (wich member are the
   *		  given parameter) and head->next = <old_head>
   */
-queue_t *enqueue(queue_t *head,queue_t *tail,pkt_t *packet,struct timeval *tv);
+queue_t *enqueue(queue_t **head,queue_t **tail,pkt_t *packet,struct timeval *tv);
 
 /**
   * This method shall enqueue an node of the queue (so that it doesn't allocate
@@ -43,13 +43,13 @@ queue_t *enqueue(queue_t *head,queue_t *tail,pkt_t *packet,struct timeval *tv);
   * @param tail: The tail of the queue (i.e. the older element inserted in the queue not yet dequeue). This element should not be NULL
   * @return After the execution, the head of the queue should be elem and elem->next should be head
   */
-void re_enqueue(queue_t *head,queue_t *tail,queue_t *elem);
+void re_enqueue(queue_t **head,queue_t **tail,queue_t *elem);
 
 /**
   * @pre -
   * @post return the first element inserted in the queue and remove it from the queue
   */
-queue_t *dequeue(queue_t *head,queue_t *tail);
+queue_t *dequeue(queue_t **head,queue_t **tail);
 
 /**
   * This function shall remove an arbitrary given element from the queue (even the head or the tail)
@@ -58,5 +58,5 @@ queue_t *dequeue(queue_t *head,queue_t *tail);
   * @param elem: This is a pointer to the element to remove from the queue. It should not be NULL
   * @return -
   */
-void remove_queue(queue_t *head,queue_t *tail,queue_t *elem);
+void remove_queue(queue_t **head,queue_t **tail,queue_t *elem);
 #endif

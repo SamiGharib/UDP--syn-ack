@@ -265,7 +265,7 @@ void test_prepare_packet_in_length(void){
 				CU_FAIL();
 		}
 		struct timeval *tv = NULL;
-		pkt_t *pkt = prepare_packet(data,250*sizeof(uint8_t),tv);
+		pkt_t *pkt = prepare_packet(data,250*sizeof(uint8_t),&tv);
 		if(pkt == NULL){
 				CU_FAIL();
 		}
@@ -284,7 +284,7 @@ void test_prepare_packet_just_length(void){
 				CU_FAIL();
 		}
 		struct timeval *tv = NULL;
-		pkt_t *pkt = prepare_packet(data,512*sizeof(uint8_t),tv);
+		pkt_t *pkt = prepare_packet(data,512*sizeof(uint8_t),&tv);
 		if(pkt == NULL){
 				CU_FAIL();
 		}
@@ -303,7 +303,7 @@ void test_prepare_packet_out_length(void){
 				CU_FAIL();
 		}
 		struct timeval *tv = NULL;
-		pkt_t *pkt = prepare_packet(data,600*sizeof(uint8_t),tv);
+		pkt_t *pkt = prepare_packet(data,600*sizeof(uint8_t),&tv);
 		CU_ASSERT_PTR_NULL(pkt);
 		pkt_del(pkt);
 		free(data);
