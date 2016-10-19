@@ -19,7 +19,8 @@
 uint32_t getCRC(const pkt_t *pkt) {
     unsigned long int crc = crc32(0L, Z_NULL, 0);
     crc = crc32(crc, (unsigned char *) pkt, 8);
-    crc = crc32(crc, (pkt->data), pkt_get_length(pkt));
+    if(pkt_get_type(pkt) != PTYPE_ACK)
+        crc = crc32(crc, (pkt->data), pkt_get_length(pk
     return (uint32_t) crc;
 }
 
@@ -76,7 +77,7 @@ pkt_status_code pkt_encode(const pkt_t *pkt, uint8_t *buf, size_t *len) {
     memcpy(buf + 8, pkt_get_payload(pkt), pkt_get_length(pkt));//TODO manage the null case
     *len += 12 + pkt_get_length(pkt);
 
-    printf("%d\n", getCRC(pkt));
+    printf("CRC: %d\n", getCRC(pkt));
 
     uint32_t yoloCRC = htonl(getCRC(pkt));
     memcpy(buf + 8 + pkt_get_length(pkt), &yoloCRC, 4);
