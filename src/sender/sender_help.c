@@ -177,161 +177,164 @@ static void sigalrm_handler(int signum) {
   * @return If all the data has been sent without problem, then this function return 0. If an error has occured, the -1 is return
   *			and an error message is sent to stderr
   */
-int send_data(const char *dest_addr, int port) {
-    /* Setting sig_handler for alarm */
-    if (signal(SIGALRM, sigalrm_handler) == SIG_ERR) {
-        fprintf(stderr, "Error while setting sig handler for the alarm signal : %s\n", strerror(errno));
-        return -1;
-    }
-    /* Setting the max RTT_MAX */
-    RTT_MAX.tv_sec = TIME_SEC;
-    RTT_MAX.tv_usec = TIME_USEC;
-    /* Getting the real address */
-    struct sockaddr_in6 addr;
-    const char *err = real_address(dest_addr, &addr);
-    if (err) {
-        fprintf(stderr, "Error while resolving hostname %s: %s\n", dest_addr, err);
-        return -1;
-    }
-    if (DEBUG) {
-        fprintf(stdout, "Address : %s\n", addr.sin6_addr.s6_addr);
-    }
-    /* Getting the socket */
-    int sfd = create_socket(NULL, -1, &addr, port);
-    if (sfd < 0) {
-        fprintf(stderr, "Failed to create the socket\n");
-        return -1;
-    }
-    if (DEBUG) {
-        fprintf(stdout, "Socket created -> %d\n", sfd);
-    }
-    /* Start to read data */
-    /* Buffer to store payload */
-    uint8_t write_buf[512];
-    uint8_t read_buf[512];
-    memset((void *) write_buf, 0, MAX_PAYLOAD_SIZE);
-    memset((void *) read_buf, 0, MAX_PAYLOAD_SIZE);
-    /* Buffer to store packet */
-    uint8_t toSend[MAX_PACKET_SIZE];
-    uint8_t toReceive[MAX_PACKET_SIZE];
-    uint8_t last_sent[MAX_PACKET_SIZE];
-    memset((void *) toSend, 0, MAX_PACKET_SIZE);
-    memset((void *) toReceive, 0, MAX_PACKET_SIZE);
-    ssize_t last_sent_length;
-    /* Sets for the select() call */
-    fd_set readfds;
-    fd_set writefds;
-    FD_ZERO(&readfds);
-    FD_ZERO(&writefds);
-    ssize_t nBytes;
-    while (1) {
-        if (end_of_data && head == NULL && tail == NULL) {
-            if (DEBUG) {
-                fprintf(stdout, "End of data -> sending end-of-communication segment\n");
-            }
-            pkt_t *pkt = prepare_packet(NULL, 0, NULL);
-            if (pkt == NULL) {
-                fprintf(stderr, "Error, not enough memory to send the end-of-communication segment\n");
-                return -1;
-            }
-            size_t len = MAX_PACKET_SIZE;
-            pkt_encode(pkt, toSend, &len);
-            nBytes = send(sfd, (void *) toSend, len * sizeof(uint8_t), 0);
-            if (nBytes == -1) {
-                fprintf(stderr,
-                        "Error while sending the end-of-communication segment : %s\n Terminating the connection brutally\n",
-                        strerror(errno));
-                return -1;
-            }
-            return 0;
-        }
-        memset((void *) last_sent, 0, MAX_PACKET_SIZE);
-        last_sent_length = 0;
-        FD_SET(fileno(stdin), &readfds);
-        FD_SET(sfd, &readfds);
-        FD_SET(sfd, &writefds);
-        int rv = select(sfd + 1, &readfds, &writefds, NULL, NULL);
-        if (rv == -1) {
-            fprintf(stderr, "Error while multiplexing stdin and the socket %d : %s\n", sfd, strerror(errno));
-            return -1;
-        }
-        /* Receiving ACK */
-        if (FD_ISSET(sfd, &readfds)) {
-            if (DEBUG) {
-                fprintf(stdout, "Receiving ack\n");
-            }
-            nBytes = recv(sfd, (void *) toReceive, 3 * sizeof(uint32_t), 0);
-            if (nBytes == -1) {
-                fprintf(stderr, "Error while receiving ack : %s\n", strerror(errno));
-                return -1;
-            }
-            pkt_t *pkt = pkt_new();
-            if (pkt_decode(toReceive, nBytes * sizeof(uint8_t), pkt) == PKT_OK) {
-                if (DEBUG) {
-                    fprintf(stdout, "seqnum of the ack : %d\n", pkt_get_seqnum(pkt));
-                    fprintf(stdout, "window of the ack : %d\n", pkt_get_window(pkt));
-                }
-                if (DEBUG) {
-                    fprintf(stdout, "Should begin ack function\n");
-                }
-                acknowledge(pkt_get_seqnum(pkt));
-                if (free_to_go > pkt_get_window(pkt))
-                    free_to_go = pkt_get_window(pkt);
-                else
-                    free_to_go += pkt_get_window(pkt) - free_to_go;
-                if (pkt_get_window(pkt) == 0) {
-                    if (sigsetjmp(env, 1) == 0) {
-                        alarm(4);
-                    } else {
-                        send(sfd, last_sent, last_sent_length, 0);
-                        alarm(4);
-                    }
-                }
-            }
-        }
-        /* Ready to send data */
-        if (FD_ISSET(fileno(stdin), &readfds) && FD_ISSET(sfd, &writefds) && free_to_go != 0 && end_of_data == 0) {
-            /* read data from stdin */
-            nBytes = read(fileno(stdin), (char *) write_buf, MAX_PAYLOAD_SIZE);
-            /* EOF => cut connection */
-            if (nBytes == 0) {
-                fprintf(stdout, "Receiving EOF -> will check if any segment not ack\n");
-                end_of_data = 1;
-            }
-            if (nBytes == -1) {
-                fprintf(stderr, "Error while reading stdin : %s\n", strerror(errno));
-                return -1;
-            } else {
-                /* Prepare packet and sending it by the socket */
-                memcpy((void *) last_sent, (void *) write_buf, nBytes);
-                last_sent_length = nBytes;
-                struct timeval *tv = NULL;
-                pkt_t *pkt = prepare_packet(write_buf, (uint16_t) nBytes, tv);
-                if (pkt != NULL) {
-                    size_t len = MAX_PACKET_SIZE;
-                    pkt_encode(pkt, toSend, &len);
-                    if (DEBUG) {
-                        fprintf(stdout, "Sending packet w/ seqnum %d w/ length %d\n", pkt_get_seqnum(pkt),
-                                pkt_get_length(pkt));
-                    }
-                    send(sfd, toSend, len * sizeof(uint8_t), 0);
-                    if (enqueue(head, tail, pkt, tv) == NULL) {
-                        fprintf(stderr, "No memory to store packet sent (for eventual re-sending). Terminating.\n");
-                        return -1;
-                    }
-                    free_to_go--;
-                    if (DEBUG) {
-                        fprintf(stdout, "free to go : %d\n", free_to_go);
-                    }
-                }
-            }
-        }
-        if (free_to_go != 0)
-            resend_data(sfd);
-        FD_CLR(fileno(stdin), &readfds);
-        FD_CLR(sfd, &readfds);
-        FD_CLR(sfd, &writefds);
-    }
-    return 0;
+int send_data(const char *dest_addr,int port){
+		/* Setting sig_handler for alarm */
+		if(signal(SIGALRM,sigalrm_handler) == SIG_ERR){
+				fprintf(stderr,"Error while setting sig handler for the alarm signal : %s\n",strerror(errno));
+				return -1;
+		}
+		/* Setting the max RTT_MAX */
+		RTT_MAX.tv_sec = TIME_SEC;
+		RTT_MAX.tv_usec = TIME_USEC;
+		/* Getting the real address */
+		struct sockaddr_in6 addr;
+		const char *err = real_address(dest_addr,&addr);
+		if(err){
+				fprintf(stderr,"Error while resolving hostname %s: %s\n",dest_addr,err);
+				return -1;
+		}
+		if(DEBUG){
+				fprintf(stdout,"Address : %s\n",addr.sin6_addr.s6_addr);
+		}
+		/* Getting the socket */
+		int sfd = create_socket(NULL,-1,&addr,port);
+		if(sfd < 0){
+				fprintf(stderr,"Failed to create the socket\n");
+				return -1;
+		}
+		if(DEBUG){
+				fprintf(stdout,"Socket created -> %d\n",sfd);
+		}
+		/* Start to read data */
+		/* Buffer to store payload */
+		uint8_t write_buf[512];
+		uint8_t read_buf[512];
+		memset((void *)write_buf,0,MAX_PAYLOAD_SIZE);
+		memset((void *)read_buf,0,MAX_PAYLOAD_SIZE);
+		/* Buffer to store packet */
+		uint8_t toSend[MAX_PACKET_SIZE];
+		uint8_t toReceive[MAX_PACKET_SIZE];
+		uint8_t last_sent[MAX_PACKET_SIZE];
+		memset((void *)toSend,0,MAX_PACKET_SIZE);
+		memset((void *)toReceive,0,MAX_PACKET_SIZE);
+		ssize_t last_sent_length;
+		/* Sets for the select() call */
+		fd_set readfds;
+		fd_set writefds;
+		FD_ZERO(&readfds);
+		FD_ZERO(&writefds);
+		ssize_t nBytes;
+		while(1){
+				if(end_of_data && head == NULL && tail == NULL){
+						if(DEBUG){
+								fprintf(stdout,"End of data -> sending end-of-communication segment\n");
+						}
+						pkt_t *pkt = prepare_packet(NULL,0,NULL);
+						if(pkt == NULL){
+								fprintf(stderr,"Error, not enough memory to send the end-of-communication segment\n");
+								return -1;
+						}
+						size_t len = MAX_PACKET_SIZE;
+						pkt_encode(pkt,toSend,&len);
+						nBytes = send(sfd,(void *)toSend,len*sizeof(uint8_t),0);
+						if(nBytes == -1){
+								fprintf(stderr,"Error while sending the end-of-communication segment : %s\n Terminating the connection brutally\n",strerror(errno));
+								return -1;
+						}
+						return 0;
+				}
+				memset((void *)last_sent,0,MAX_PACKET_SIZE);
+				last_sent_length = 0;
+				FD_SET(fileno(stdin),&readfds);
+				FD_SET(sfd,&readfds);
+				FD_SET(sfd,&writefds);
+				int rv = select(sfd+1,&readfds,&writefds,NULL,NULL);
+				if(rv == -1){
+						fprintf(stderr,"Error while multiplexing stdin and the socket %d : %s\n",sfd,strerror(errno));
+						return -1;
+				}
+				/* Receiving ACK */
+				if(FD_ISSET(sfd,&readfds)){
+						if(DEBUG){
+								fprintf(stdout,"Receiving ack\n");
+						}
+						nBytes = recv(sfd,(void *)toReceive,3*sizeof(uint32_t),0);
+						if(nBytes == -1){
+								fprintf(stderr,"Error while receiving ack : %s\n",strerror(errno));
+								return -1;
+						}
+						pkt_t *pkt = pkt_new();
+						pkt_status_code ret =pkt_decode(toReceive,nBytes*sizeof(uint8_t),pkt);
+						if(DEBUG){
+								fprintf(stdout,"ret code for pkt_decode : %d\n",ret);
+						}
+						if(ret== PKT_OK){
+							if(DEBUG){
+									fprintf(stdout,"seqnum of the ack : %d\n",pkt_get_seqnum(pkt));
+									fprintf(stdout,"window of the ack : %d\n",pkt_get_window(pkt));
+							}
+								if(DEBUG){
+										fprintf(stdout,"Should begin ack function\n");
+								}
+								acknowledge(pkt_get_seqnum(pkt));
+								if(free_to_go > pkt_get_window(pkt))
+										free_to_go = pkt_get_window(pkt);
+								else
+										free_to_go += pkt_get_window(pkt) - free_to_go;
+								if(pkt_get_window(pkt) == 0){
+										if(sigsetjmp(env,1)==0){
+												alarm(4);
+										}
+										else{
+												send(sfd,last_sent,last_sent_length,0);
+												alarm(4);
+										}
+								}
+						}
+				}
+				/* Ready to send data */
+				if(FD_ISSET(fileno(stdin),&readfds) && FD_ISSET(sfd,&writefds) && free_to_go != 0 && end_of_data == 0){
+						/* read data from stdin */
+						nBytes = read(fileno(stdin),(char *)write_buf,MAX_PAYLOAD_SIZE);
+						/* EOF => cut connection */
+						if(nBytes == 0){
+								fprintf(stdout,"Receiving EOF -> will check if any segment not ack\n");
+								end_of_data=1;
+						}
+						if(nBytes == -1){
+								fprintf(stderr,"Error while reading stdin : %s\n",strerror(errno));
+								return -1;
+						}
+						else{
+							/* Prepare packet and sending it by the socket */
+							memcpy((void *)last_sent,(void *)write_buf,nBytes);
+							last_sent_length = nBytes;
+							struct timeval *tv=NULL;
+							pkt_t *pkt = prepare_packet(write_buf,(uint16_t)nBytes,tv);
+							if(pkt != NULL){
+									size_t len = MAX_PACKET_SIZE;
+									pkt_encode(pkt,toSend,&len);
+									if(DEBUG){
+											fprintf(stdout,"Sending packet w/ seqnum %d w/ length %d\n",pkt_get_seqnum(pkt),pkt_get_length(pkt));
+									}
+									send(sfd,toSend,len*sizeof(uint8_t),0);
+									if(enqueue(head,tail,pkt,tv) == NULL){
+											fprintf(stderr,"No memory to store packet sent (for eventual re-sending). Terminating.\n");
+											return -1;
+									}
+									free_to_go--;
+									if(DEBUG){
+											fprintf(stdout,"free to go : %d\n",free_to_go);
+									}
+							}
+						}
+				}
+				if(free_to_go != 0)
+					resend_data(sfd);
+				FD_CLR(fileno(stdin),&readfds);
+				FD_CLR(sfd,&readfds);
+				FD_CLR(sfd,&writefds);
+		}
+		return 0;
 }
 
