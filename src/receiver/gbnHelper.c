@@ -36,17 +36,21 @@ pkt_status_code selective_repeat(int fd, int sfd){
         if(sel > 0 && FD_ISSET(sfd,&srfd)){
             memset(&buff, 0, MAX_PACKET_SIZE);
             readed = read(sfd, buff, MAX_PACKET_SIZE);
-            size_t len = (size_t)ntohs(buff[1]);
+            //size_t len = (size_t)ntohs(buff[1]);
             bufsize = MAX_PACKET_SIZE;
             if(readed == -1)
                 return E_UNCONSISTENT;
             pkt_t * pkt = pkt_new();
-            len+=12;
-            if(pkt_decode(buff, bufsize, pkt) != PKT_OK) {
+
+            int DBG;
+            if((DBG = pkt_decode(buff, bufsize, pkt)) != PKT_OK) {
+                fprintf(stdout, "error %d\n", DBG);
+                fflush(stdout);
                 pkt_del(pkt);
                 continue;
             }
             ret = treatPkt(&buffer, &startBuffer, &curSeqNum, pkt, fd);
+
             if(ret >= 0)
                 sendACK(sfd, curSeqNum, pkt_get_timestamp(pkt));
 

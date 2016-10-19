@@ -1,16 +1,17 @@
 #include "sender_help.h"
+
 #define DEBUG 1
-int window_receiver=1;
-uint8_t next_seqnum=0;
+int window_receiver = 1;
+uint8_t next_seqnum = 0;
 /* number of packet we can send */
-int free_to_go=1;
+int free_to_go = 1;
 struct timeval RTT_MAX;
 /* FIFO queue to stock pkt sent */
 queue_t *head = NULL;
 queue_t *tail = NULL;
 /* Sigalrm variable */
 sigjmp_buf env;
-int end_of_data=0;
+int end_of_data = 0;
 
 /**
   * This function shall prepare a packet before sending it to the network.
@@ -20,40 +21,40 @@ int end_of_data=0;
   * @return This function return a pointer to the new created pkt_t structure. This structure is ready
   *			to be send over the socket after formating it via pkt_encode. Moreover, tv point to a struct timeval.
   */
-pkt_t * prepare_packet(const uint8_t *data,uint16_t length,struct timeval *tv){
-		if(DEBUG){
-				fprintf(stdout,"Preparing a packet of length %d\n",length);
-		}
-		pkt_t *pkt = pkt_new();
-		if(pkt == NULL)
-				return NULL;
-		if(pkt_set_type(pkt,PTYPE_DATA) != PKT_OK)
-				return NULL;
-		if(pkt_set_window(pkt,0) != PKT_OK)
-				return NULL;
-		if(pkt_set_seqnum(pkt,next_seqnum) != PKT_OK)
-				return NULL;
-		if(next_seqnum == 255)
-				next_seqnum = 0;
-		else
-			next_seqnum++;
-		tv = (struct timeval *)malloc(sizeof(struct timeval));
-		int err = gettimeofday(tv,NULL);
-		if(err != 0){
-				fprintf(stderr,"Error gettimeofday() for packet w/ seqnum %d\n",pkt_get_length(pkt));
-				return NULL;
-		}
-		if(pkt_set_timestamp(pkt,tv->tv_usec) != PKT_OK)
-				return NULL;
-		if(pkt_set_payload(pkt,data,length) != PKT_OK)
-				return NULL;
-		if(DEBUG){
-				fprintf(stdout,"Packet prepared : type : %d\n",pkt_get_type(pkt));
-				fprintf(stdout,"window : %d (should be 0)\n",pkt_get_window(pkt));
-				fprintf(stdout,"seqnum : %d\n",pkt_get_seqnum(pkt));
-				fprintf(stdout,"length : %d\n",pkt_get_length(pkt));
-		}
-		return pkt;
+pkt_t *prepare_packet(const uint8_t *data, uint16_t length, struct timeval *tv) {
+    if (DEBUG) {
+        fprintf(stdout, "Preparing a packet of length %d\n", length);
+    }
+    pkt_t *pkt = pkt_new();
+    if (pkt == NULL)
+        return NULL;
+    if (pkt_set_type(pkt, PTYPE_DATA) != PKT_OK)
+        return NULL;
+    if (pkt_set_window(pkt, 0) != PKT_OK)
+        return NULL;
+    if (pkt_set_seqnum(pkt, next_seqnum) != PKT_OK)
+        return NULL;
+    if (next_seqnum == 255)
+        next_seqnum = 0;
+    else
+        next_seqnum++;
+    tv = (struct timeval *) malloc(sizeof(struct timeval));
+    int err = gettimeofday(tv, NULL);
+    if (err != 0) {
+        fprintf(stderr, "Error gettimeofday() for packet w/ seqnum %d\n", pkt_get_length(pkt));
+        return NULL;
+    }
+    if (pkt_set_timestamp(pkt, tv->tv_usec) != PKT_OK)
+        return NULL;
+    if (pkt_set_payload(pkt, data, length) != PKT_OK)
+        return NULL;
+    if (DEBUG) {
+        fprintf(stdout, "Packet prepared : type : %d\n", pkt_get_type(pkt));
+        fprintf(stdout, "window : %d (should be 0)\n", pkt_get_window(pkt));
+        fprintf(stdout, "seqnum : %d\n", pkt_get_seqnum(pkt));
+        fprintf(stdout, "length : %d\n", pkt_get_length(pkt));
+    }
+    return pkt;
 }
 
 /**
@@ -61,109 +62,111 @@ pkt_t * prepare_packet(const uint8_t *data,uint16_t length,struct timeval *tv){
   * @param sfd: The file descriptor that represent the socket. It should be strictly greater than 0.
   * @return After the execution of this function, the packet that have timed out are resent (and thus, re-enqueue)
   */
-void resend_data(int sfd){
-		struct timeval cmp;
-		queue_t *itr = tail;
-		while(itr != NULL){
-				if(DEBUG){
-						fprintf(stdout,"Start re-sending old packet\n");
-				}
-				struct timeval curr_time;
-				int err = gettimeofday(&curr_time,NULL);
-				if(err != 0){
-						fprintf(stderr,"Error w/ gettimeofday() while re-sending packet\n");
-						return;
-				}
-				cmp.tv_sec = curr_time.tv_sec - (itr->tv)->tv_sec;
-				cmp.tv_usec = curr_time.tv_usec - (itr->tv)->tv_usec;
-				if(cmp.tv_sec > RTT_MAX.tv_sec || (cmp.tv_sec == RTT_MAX.tv_sec && cmp.tv_usec > RTT_MAX.tv_usec )){
-						RTT_MAX.tv_usec += (1000000*cmp.tv_sec + cmp.tv_usec)/INCREM_TIME_OUT;
-						if(RTT_MAX.tv_usec > 1000000){
-								RTT_MAX.tv_sec ++;
-								RTT_MAX.tv_usec = 0;
-						}
-						if(RTT_MAX.tv_sec > MAX_TIME_SEC || (RTT_MAX.tv_sec == MAX_TIME_SEC && RTT_MAX.tv_usec > MAX_TIME_USEC)){
-										RTT_MAX.tv_sec = MAX_TIME_SEC;
-										RTT_MAX.tv_usec = MAX_TIME_USEC;
-						}
-						size_t pkt_length = pkt_get_length((itr->packet)) + 3*sizeof(uint32_t);
-						uint8_t buf[pkt_length];
-						memset((void *)buf,0,pkt_length);
-						if(pkt_encode(itr->packet,buf,&pkt_length) != PKT_OK){
-								fprintf(stderr,"Error w/ pkt_encode() while re-sending packet\n");
-								return;
-						}
-						ssize_t nBytes = send(sfd,(void *)buf,pkt_length,0);
-						if(DEBUG){
-								fprintf(stdout,"packet w/ seqnum %d resent\n",pkt_get_seqnum(itr->packet));
-								fprintf(stdout,"New RTT_MAX %lld s and %lld us\n",(long long)RTT_MAX.tv_sec,(long long)RTT_MAX.tv_usec);
-						}
-						if(nBytes == -1){
-								fprintf(stderr,"Error while re-sending packet over the socket : %s\n",strerror(errno));
-								return;
-						}
-						free_to_go--;
-						queue_t *toEnqueue = dequeue(head,tail);
-						itr = tail;
-						re_enqueue(head,tail,toEnqueue);
-				}
-			else
-						return;
-		}
+void resend_data(int sfd) {
+    struct timeval cmp;
+    queue_t *itr = tail;
+    while (itr != NULL) {
+        if (DEBUG) {
+            fprintf(stdout, "Start re-sending old packet\n");
+        }
+        struct timeval curr_time;
+        int err = gettimeofday(&curr_time, NULL);
+        if (err != 0) {
+            fprintf(stderr, "Error w/ gettimeofday() while re-sending packet\n");
+            return;
+        }
+        cmp.tv_sec = curr_time.tv_sec - (itr->tv)->tv_sec;
+        cmp.tv_usec = curr_time.tv_usec - (itr->tv)->tv_usec;
+        if (cmp.tv_sec > RTT_MAX.tv_sec || (cmp.tv_sec == RTT_MAX.tv_sec && cmp.tv_usec > RTT_MAX.tv_usec)) {
+            RTT_MAX.tv_usec += (1000000 * cmp.tv_sec + cmp.tv_usec) / INCREM_TIME_OUT;
+            if (RTT_MAX.tv_usec > 1000000) {
+                RTT_MAX.tv_sec++;
+                RTT_MAX.tv_usec = 0;
+            }
+            if (RTT_MAX.tv_sec > MAX_TIME_SEC || (RTT_MAX.tv_sec == MAX_TIME_SEC && RTT_MAX.tv_usec > MAX_TIME_USEC)) {
+                RTT_MAX.tv_sec = MAX_TIME_SEC;
+                RTT_MAX.tv_usec = MAX_TIME_USEC;
+            }
+            size_t pkt_length = pkt_get_length((itr->packet)) + 3 * sizeof(uint32_t);
+            uint8_t buf[pkt_length];
+            memset((void *) buf, 0, pkt_length);
+            if (pkt_encode(itr->packet, buf, &pkt_length) != PKT_OK) {
+                fprintf(stderr, "Error w/ pkt_encode() while re-sending packet\n");
+                return;
+            }
+            ssize_t nBytes = send(sfd, (void *) buf, pkt_length, 0);
+            if (DEBUG) {
+                fprintf(stdout, "packet w/ seqnum %d resent\n", pkt_get_seqnum(itr->packet));
+                fprintf(stdout, "New RTT_MAX %lld s and %lld us\n", (long long) RTT_MAX.tv_sec,
+                        (long long) RTT_MAX.tv_usec);
+            }
+            if (nBytes == -1) {
+                fprintf(stderr, "Error while re-sending packet over the socket : %s\n", strerror(errno));
+                return;
+            }
+            free_to_go--;
+            queue_t *toEnqueue = dequeue(head, tail);
+            itr = tail;
+            re_enqueue(head, tail, toEnqueue);
+        } else
+            return;
+    }
 }
+
 /**
   * This function shall go trough the queue of waiting for re-sending packet and delete those
   * wich are well received by the receiver.
   * @param next_expected_seqnum: This is the next expected seqnum by the receiver.
   * @return -
   */
-void acknowledge(uint16_t next_expected_seqnum){
-		if(DEBUG){
-			fprintf(stdout,"Starting checking for packet w/ seqnum < %d\n",next_expected_seqnum);
-		}
-		queue_t *itr =head;
-		while(itr != NULL){
-				if(pkt_get_seqnum(itr->packet) < next_expected_seqnum){
-						if(DEBUG){
-								fprintf(stdout,"Ack for packet w/ seqnum %d\n",pkt_get_seqnum(itr->packet));
-						}
-						struct timeval tmp;
-						struct timeval curr_time;
-						int err = gettimeofday(&curr_time,NULL);
-						if(err != 0){
-								fprintf(stderr,"Error with gettimeofday to update RTT_MAX => no update will be performed\n");
-						}
-						else{
-								tmp.tv_sec = curr_time.tv_sec - (itr->tv)->tv_sec;
-								tmp.tv_usec = curr_time.tv_usec - (itr->tv)->tv_usec;
-								if(DEBUG){
-										fprintf(stdout,"Ack with %lld s and %lld us before TO\n",(long long)tmp.tv_sec,(long long)tmp.tv_usec);
-								}
-								RTT_MAX.tv_usec -= (1000000*tmp.tv_sec + tmp.tv_usec)/DECREM_TIME_OUT;
-								if(RTT_MAX.tv_usec < 0){
-										RTT_MAX.tv_sec --;
-										RTT_MAX.tv_usec = 999999;
-								}
-								if(RTT_MAX.tv_sec < 2){
-										RTT_MAX.tv_sec = 2;
-										RTT_MAX.tv_usec = 0;
-								}
-								if(DEBUG){
-										fprintf(stdout,"New RTT_MAX : %lld s and %lld us\n",(long long)RTT_MAX.tv_sec,(long long)RTT_MAX.tv_usec);
-								}
-						}
-						remove_queue(head,tail,itr);
-						free_to_go++;
-				}
-				itr = itr->next;
-		}
+void acknowledge(uint16_t next_expected_seqnum) {
+    if (DEBUG) {
+        fprintf(stdout, "Starting checking for packet w/ seqnum < %d\n", next_expected_seqnum);
+    }
+    queue_t *itr = head;
+    while (itr != NULL) {
+        if (pkt_get_seqnum(itr->packet) < next_expected_seqnum) {
+            if (DEBUG) {
+                fprintf(stdout, "Ack for packet w/ seqnum %d\n", pkt_get_seqnum(itr->packet));
+            }
+            struct timeval tmp;
+            struct timeval curr_time;
+            int err = gettimeofday(&curr_time, NULL);
+            if (err != 0) {
+                fprintf(stderr, "Error with gettimeofday to update RTT_MAX => no update will be performed\n");
+            } else {
+                tmp.tv_sec = curr_time.tv_sec - (itr->tv)->tv_sec;
+                tmp.tv_usec = curr_time.tv_usec - (itr->tv)->tv_usec;
+                if (DEBUG) {
+                    fprintf(stdout, "Ack with %lld s and %lld us before TO\n", (long long) tmp.tv_sec,
+                            (long long) tmp.tv_usec);
+                }
+                RTT_MAX.tv_usec -= (1000000 * tmp.tv_sec + tmp.tv_usec) / DECREM_TIME_OUT;
+                if (RTT_MAX.tv_usec < 0) {
+                    RTT_MAX.tv_sec--;
+                    RTT_MAX.tv_usec = 999999;
+                }
+                if (RTT_MAX.tv_sec < 2) {
+                    RTT_MAX.tv_sec = 2;
+                    RTT_MAX.tv_usec = 0;
+                }
+                if (DEBUG) {
+                    fprintf(stdout, "New RTT_MAX : %lld s and %lld us\n", (long long) RTT_MAX.tv_sec,
+                            (long long) RTT_MAX.tv_usec);
+                }
+            }
+            remove_queue(head, tail, itr);
+            free_to_go++;
+        }
+        itr = itr->next;
+    }
 }
 
 /**
   * Signal handler for the alarm signal (used when window of the last received packet is 0
   */
-static void sigalrm_handler(int signum){
-		siglongjmp(env,1);
+static void sigalrm_handler(int signum) {
+    siglongjmp(env, 1);
 }
 
 /**
