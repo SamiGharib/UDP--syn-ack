@@ -20,7 +20,7 @@ uint32_t getCRC(const pkt_t *pkt) {
     unsigned long int crc = crc32(0L, Z_NULL, 0);
     crc = crc32(crc, (unsigned char *) pkt, 8);
     if(pkt_get_type(pkt) != PTYPE_ACK)
-        crc = crc32(crc, (pkt->data), pkt_get_length(pk
+        crc = crc32(crc, (pkt->data), pkt_get_length(pkt));
     return (uint32_t) crc;
 }
 
