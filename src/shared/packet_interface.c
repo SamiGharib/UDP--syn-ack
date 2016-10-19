@@ -32,22 +32,32 @@ pkt_status_code pkt_decode(const uint8_t *data, const size_t len, pkt_t *pkt)
 {
 		if(len < 12)
 				return E_UNCONSISTENT;
+		uLong crc_check;
 		memcpy(((void *)pkt),(void *)data,2*sizeof(uint32_t));
-		pkt->length = ntohs(pkt->length);
-		uint8_t *payload = (uint8_t *)malloc(pkt->length*sizeof(uint8_t));
-		memcpy((void *)payload,((void *)data)+2*sizeof(uint32_t),pkt->length*sizeof(uint8_t));
-		pkt->payload = payload;
-		memcpy((void *)&(pkt->crc),((void *)data)+2*sizeof(uint32_t)+pkt->length*sizeof(uint8_t),sizeof(uint32_t));
-		pkt->crc = ntohl(pkt->crc);
-		uLong check_crc = crc32(0L,(Bytef *)data,2*sizeof(uint32_t)+pkt->length*sizeof(uint8_t));
-		if(check_crc != pkt->crc)
-				return E_CRC;
+		if(pkt_get_type(pkt) == PTYPES_DATA){
+			pkt->length = ntohs(pkt->length);
+			uint8_t *payload = (uint8_t *)malloc(pkt->length*sizeof(uint8_t));
+			memcpy((void *)payload,((void *)data)+2*sizeof(uint32_t),pkt->length*sizeof(uint8_t));
+			pkt->payload = payload;
+			memcpy((void *)&(pkt->crc),((void *)data)+2*sizeof(uint32_t)+pkt->length*sizeof(uint8_t),sizeof(uint32_t));
+			pkt->crc = ntohl(pkt->crc);
+			check_crc = crc32(0L,(Bytef *)data,2*sizeof(uint32_t)+pkt->length*sizeof(uint8_t));
+			if(check_crc != pkt->crc)
+					return E_CRC;
+		}
+		else{
+				pkt->length = 0;
+				memcpy(((void *)pkt)+2*sizeof(uint32_t),((void *)data)+2*sizeof(uint32_t),sizeof(uint32_t));
+				check_crc = crc32(0L,(Bytef *)data,3*sizeof(uint32_t));
+				if(check_crc != pkt->crc)
+						return E_CRC;
+		}
 		return PKT_OK;
 }
 
 pkt_status_code pkt_encode(const pkt_t* pkt, uint8_t *buf, size_t *len)
 {
-		if(*len < 512*sizeof(uint8_t)+3*sizeof(uint32_t))
+		if(*len < pkt->length*sizeof(uint8_t)+3*sizeof(uint32_t))
 				return E_NOMEM;
 		memset((void *)buf,0,*len);
 		pkt_t pkt_tmp = *pkt;
