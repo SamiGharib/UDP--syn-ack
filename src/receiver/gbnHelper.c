@@ -70,8 +70,8 @@ int treatPkt(pkt_t ** buffer, uint8_t *startBuf, uint8_t *curSeqNum, pkt_t * pkt
     uint8_t seqNum = pkt_get_seqnum(pkt);
     if((*curSeqNum) - seqNum < 0)return 1;//a packet who's late and duplicate
     if((*curSeqNum) - seqNum > 31)return -2;//a packet from the future
-    if(buffer[((*startBuf) + ((*curSeqNum) - seqNum)) % 32] == NULL)
-        buffer[((*startBuf) + ((*curSeqNum) - seqNum)) % 32] = pkt;
+    if(buffer[((*startBuf) + ((*curSeqNum) - seqNum)) % BUFSIZE] == NULL)
+        buffer[((*startBuf) + ((*curSeqNum) - seqNum)) % BUFSIZE] = pkt;
     else
         return 2;
 
@@ -98,7 +98,7 @@ int treatPkt(pkt_t ** buffer, uint8_t *startBuf, uint8_t *curSeqNum, pkt_t * pkt
         buffer[(*startBuf + i) % 32] = NULL;
     }
     //moving the current entry point of the buffer
-    *startBuf = (uint8_t)((*startBuf+size) % 32);
+    *startBuf = (uint8_t)((*startBuf+size) % BUFSIZE);
 
     //moving the current seqnum
     *curSeqNum = (uint8_t)((*curSeqNum+size) % 256);
@@ -113,8 +113,8 @@ int sendACK(int sfd, uint8_t curNumSeq, uint32_t timestamp){
     pkt_t *pkt = pkt_new();
     pkt_set_length(pkt, 0);
     pkt_set_type(pkt, PTYPE_ACK);
-    pkt_set_seqnum(pkt, (const uint8_t) (curNumSeq%32));//TODO
-    pkt_set_window(pkt, MAXWINDOWS);
+    pkt_set_seqnum(pkt, (const uint8_t) (curNumSeq%BUFSIZE));//TODO
+    pkt_set_window(pkt, MAXWINDOWS-1);
     pkt_set_timestamp(pkt, timestamp);
     //emit the packet here
     size_t len = 12 + pkt_get_length(pkt);
