@@ -22,7 +22,7 @@ int end_of_data = 0;
   */
 pkt_t *prepare_packet(const uint8_t *data, uint16_t length, struct timeval **tv) {
     if (DEBUG_HELP) {
-        fprintf(stdout, "Preparing a packet of length %d\n", length);
+        fprintf(stderr, "Preparing a packet of length %d\n", length);
     }
     pkt_t *pkt = pkt_new();
     if (pkt == NULL)
@@ -35,9 +35,10 @@ pkt_t *prepare_packet(const uint8_t *data, uint16_t length, struct timeval **tv)
         return NULL;
     if (next_seqnum == 255)
         next_seqnum = 0;
-    else
+    else{
         next_seqnum++;
-    *tv = (struct timeval *) malloc(sizeof(struct timeval));
+	}
+   	*tv = (struct timeval *) malloc(sizeof(struct timeval));
     int err = gettimeofday(*tv, NULL);
     if (err != 0) {
         fprintf(stderr, "Error gettimeofday() for packet w/ seqnum %d\n", pkt_get_length(pkt));
@@ -48,10 +49,10 @@ pkt_t *prepare_packet(const uint8_t *data, uint16_t length, struct timeval **tv)
     if (pkt_set_payload(pkt, data, length) != PKT_OK)
         return NULL;
     if (DEBUG_HELP) {
-        fprintf(stdout, "Packet prepared : type : %d\n", pkt_get_type(pkt));
-        fprintf(stdout, "window : %d (should be 0)\n", pkt_get_window(pkt));
-        fprintf(stdout, "seqnum : %d\n", pkt_get_seqnum(pkt));
-        fprintf(stdout, "length : %d\n", pkt_get_length(pkt));
+        fprintf(stderr, "Packet prepared : type : %d\n", pkt_get_type(pkt));
+        fprintf(stderr, "window : %d (should be 0)\n", pkt_get_window(pkt));
+        fprintf(stderr, "seqnum : %d\n", pkt_get_seqnum(pkt));
+        fprintf(stderr, "length : %d\n", pkt_get_length(pkt));
     }
     return pkt;
 }
@@ -66,7 +67,7 @@ void resend_data(int sfd) {
     queue_t *itr = tail;
     while (itr != NULL) {
         if (DEBUG_HELP) {
-            fprintf(stdout, "Start re-sending old packet\n");
+            fprintf(stderr, "Start re-sending old packet\n");
         }
         struct timeval curr_time;
         int err = gettimeofday(&curr_time, NULL);
@@ -95,8 +96,8 @@ void resend_data(int sfd) {
             }
             ssize_t nBytes = send(sfd, (void *) buf, pkt_length, 0);
             if (DEBUG_HELP) {
-                fprintf(stdout, "packet w/ seqnum %d resent\n", pkt_get_seqnum(itr->packet));
-                fprintf(stdout, "New RTT_MAX %lld s and %lld us\n", (long long) RTT_MAX.tv_sec,
+                fprintf(stderr, "packet w/ seqnum %d resent\n", pkt_get_seqnum(itr->packet));
+                fprintf(stderr, "New RTT_MAX %lld s and %lld us\n", (long long) RTT_MAX.tv_sec,
                         (long long) RTT_MAX.tv_usec);
             }
             if (nBytes == -1) {
@@ -122,14 +123,14 @@ void resend_data(int sfd) {
   */
 void acknowledge(uint16_t next_expected_seqnum) {
     if (DEBUG_HELP) {
-			fprintf(stdout,"----------------------\n");
-        fprintf(stdout, "Starting checking for packet w/ seqnum < %d\n", next_expected_seqnum);
+			fprintf(stderr,"----------------------\n");
+        fprintf(stderr, "Starting checking for packet w/ seqnum < %d\n", next_expected_seqnum);
     }
     queue_t *itr = head;
     while (itr != NULL) {
         if (pkt_get_seqnum(itr->packet) < next_expected_seqnum) {
             if (DEBUG_HELP) {
-                fprintf(stdout, "Ack for packet w/ seqnum %d\n", pkt_get_seqnum(itr->packet));
+                fprintf(stderr, "Ack for packet w/ seqnum %d\n", pkt_get_seqnum(itr->packet));
             }
             struct timeval tmp;
             struct timeval curr_time;
@@ -140,7 +141,7 @@ void acknowledge(uint16_t next_expected_seqnum) {
                 tmp.tv_sec = curr_time.tv_sec - (itr->tv)->tv_sec;
                 tmp.tv_usec = curr_time.tv_usec - (itr->tv)->tv_usec;
                 if (DEBUG_HELP) {
-                    fprintf(stdout, "Ack with %lld s and %lld us before TO\n", (long long) tmp.tv_sec,
+                    fprintf(stderr, "Ack with %lld s and %lld us before TO\n", (long long) tmp.tv_sec,
                             (long long) tmp.tv_usec);
                 }
                 RTT_MAX.tv_usec -= (1000000 * tmp.tv_sec + tmp.tv_usec) / DECREM_TIME_OUT;
@@ -153,7 +154,7 @@ void acknowledge(uint16_t next_expected_seqnum) {
                     RTT_MAX.tv_usec = 0;
                 }
                 if (DEBUG_HELP) {
-                    fprintf(stdout, "New RTT_MAX : %lld s and %lld us\n", (long long) RTT_MAX.tv_sec,
+                    fprintf(stderr, "New RTT_MAX : %lld s and %lld us\n", (long long) RTT_MAX.tv_sec,
                             (long long) RTT_MAX.tv_usec);
                 }
             }
@@ -163,7 +164,7 @@ void acknowledge(uint16_t next_expected_seqnum) {
         itr = itr->next;
     }
 	if(DEBUG_HELP){
-			fprintf(stdout,"----------------------\n");
+			fprintf(stderr,"----------------------\n");
 	}
 }
 
@@ -199,7 +200,7 @@ int send_data(const char *dest_addr,int port){
 				return -1;
 		}
 		if(DEBUG_HELP){
-				fprintf(stdout,"Address : %s\n",addr.sin6_addr.s6_addr);
+				fprintf(stderr,"Address : %s\n",addr.sin6_addr.s6_addr);
 		}
 		/* Getting the socket */
 		int sfd = create_socket(NULL,-1,&addr,port);
@@ -208,7 +209,7 @@ int send_data(const char *dest_addr,int port){
 				return -1;
 		}
 		if(DEBUG_HELP){
-				fprintf(stdout,"Socket created -> %d\n",sfd);
+				fprintf(stderr,"Socket created -> %d\n",sfd);
 		}
 		/* Start to read data */
 		/* Buffer to store payload */
@@ -233,9 +234,11 @@ int send_data(const char *dest_addr,int port){
 				/* TERMINATED THE CONNECTION */
 				if(end_of_data && head == NULL && tail == NULL){
 						if(DEBUG_HELP){
-								fprintf(stdout,"End of data -> sending end-of-communication segment\n");
+								fprintf(stderr,"End of data -> sending end-of-communication segment\n");
 						}
-						pkt_t *pkt = prepare_packet(NULL,0,NULL);
+						/* SEGFAULT ICI BB */
+						struct timeval *tv=NULL;
+						pkt_t *pkt = prepare_packet(NULL,0,&tv);
 						if(pkt == NULL){
 								fprintf(stderr,"Error, not enough memory to send the end-of-communication segment\n");
 								return -1;
@@ -260,7 +263,7 @@ int send_data(const char *dest_addr,int port){
 				/* Receiving ACK */
 				if(FD_ISSET(sfd,&readfds)){
 						if(DEBUG_HELP){
-								fprintf(stdout,"Receiving ack\n");
+								fprintf(stderr,"Receiving ack\n");
 						}
 						nBytes = recv(sfd,(void *)toReceive,3*sizeof(uint32_t),0);
 						if(nBytes == -1){
@@ -270,15 +273,15 @@ int send_data(const char *dest_addr,int port){
 						pkt_t *pkt = pkt_new();
 						pkt_status_code ret =pkt_decode(toReceive,nBytes*sizeof(uint8_t),pkt);
 						if(DEBUG_HELP){
-								fprintf(stdout,"ret code for pkt_decode : %d\n",ret);
+								fprintf(stderr,"ret code for pkt_decode : %d\n",ret);
 						}
 						if(ret== PKT_OK){
 							if(DEBUG_HELP){
-									fprintf(stdout,"seqnum of the ack : %d\n",pkt_get_seqnum(pkt));
-									fprintf(stdout,"window of the ack : %d\n",pkt_get_window(pkt));
+									fprintf(stderr,"seqnum of the ack : %d\n",pkt_get_seqnum(pkt));
+									fprintf(stderr,"window of the ack : %d\n",pkt_get_window(pkt));
 							}
 								if(DEBUG_HELP){
-										fprintf(stdout,"Should begin ack function\n");
+										fprintf(stderr,"Should begin ack function\n");
 								}
 								acknowledge(pkt_get_seqnum(pkt));
 								if(free_to_go > pkt_get_window(pkt))
@@ -304,10 +307,10 @@ int send_data(const char *dest_addr,int port){
 						nBytes = read(fileno(stdin),(char *)write_buf,MAX_PAYLOAD_SIZE);
 						/* EOF => cut connection */
 						if(nBytes == 0){
-								fprintf(stdout,"Receiving EOF -> will check if any segment not ack\n");
+								fprintf(stderr,"Receiving EOF -> will check if any segment not ack\n");
 								end_of_data=1;
 						}
-						if(nBytes == -1){
+						else if(nBytes == -1){
 								fprintf(stderr,"Error while reading stdin : %s\n",strerror(errno));
 								return -1;
 						}
@@ -321,7 +324,7 @@ int send_data(const char *dest_addr,int port){
 									size_t len = MAX_PACKET_SIZE;
 									pkt_encode(pkt,toSend,&len);
 									if(DEBUG_HELP){
-											fprintf(stdout,"Sending packet w/ seqnum %d w/ length %d\n",pkt_get_seqnum(pkt),pkt_get_length(pkt));
+											fprintf(stderr,"Sending packet w/ seqnum %d w/ length %d\n",pkt_get_seqnum(pkt),pkt_get_length(pkt));
 									}
 									send(sfd,toSend,len*sizeof(uint8_t),0);
 									memset((void *)last_sent,0,MAX_PACKET_SIZE);
@@ -333,7 +336,7 @@ int send_data(const char *dest_addr,int port){
 									}
 									free_to_go--;
 									if(DEBUG_HELP){
-											fprintf(stdout,"free to go : %d\n",free_to_go);
+											fprintf(stderr,"free to go : %d\n",free_to_go);
 									}
 							}
 						}
