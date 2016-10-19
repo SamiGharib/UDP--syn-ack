@@ -34,14 +34,14 @@ typedef enum {
 	E_UNCONSISTENT, /* Le paquet est incohÃ©rent */
 } pkt_status_code;
 
-struct __attribute__((__packed__)) pkt {
-	uint8_t window:5;
-	ptypes_t type:3;
-	uint8_t seqnum;
-	uint16_t length;
-	uint32_t timestamp;
-	uint8_t *payload;
-	uint32_t crc;
+struct __attribute__((__packed__)) pkt {//13 bytes
+    uint8_t windows : 5;
+    ptypes_t type : 3;//WARNING ! windows is the first one on inginious
+    uint8_t seqnum : 8;
+    uint16_t length : 16;//en bytes !!
+    uint32_t timestamp : 32;
+    uint8_t * data;
+    uint32_t crc : 32;
 };
 
 /* Alloue et initialise une struct pkt
