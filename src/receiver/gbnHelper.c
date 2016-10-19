@@ -17,7 +17,7 @@
  * */
 pkt_status_code selective_repeat(int fd, int sfd){
 
-    pkt_t *buffer = malloc(sizeof(pkt_t)*BUFSIZE);
+    pkt_t **buffer = malloc(sizeof(pkt_t*)*BUFSIZE);
     int ret = -4, sel;
     uint8_t startBuffer = 0;
     uint8_t curSeqNum = 0;
@@ -36,20 +36,16 @@ pkt_status_code selective_repeat(int fd, int sfd){
         if(sel > 0 && FD_ISSET(sfd,&srfd)){
             memset(&buff, 0, MAX_PACKET_SIZE);
             readed = read(sfd, buff, MAX_PACKET_SIZE);
-            //size_t len = (size_t)ntohs(buff[1]);
             bufsize = MAX_PACKET_SIZE;
             if(readed == -1)
                 return E_UNCONSISTENT;
             pkt_t * pkt = pkt_new();
 
-            int DBG;
-            if((DBG = pkt_decode(buff, bufsize, pkt)) != PKT_OK) {
-                fprintf(stderr, "Error %d\n", DBG);
-                fflush(stderr);
+            if(pkt_decode(buff, bufsize, pkt) != PKT_OK) {
                 pkt_del(pkt);
                 continue;
             }
-            ret = treatPkt(&buffer, &startBuffer, &curSeqNum, pkt, fd);
+            ret = treatPkt(buffer, &startBuffer, &curSeqNum, pkt, fd);
 
             if(ret >= 0)
                 sendACK(sfd, curSeqNum, pkt_get_timestamp(pkt));
@@ -63,19 +59,19 @@ pkt_status_code selective_repeat(int fd, int sfd){
     return PKT_OK;
 }
 
-//TODO : check for ack
 int treatPkt(pkt_t ** buffer, uint8_t *startBuf, uint8_t *curSeqNum, pkt_t * pkt, int fd){
 
     //try to insert it into the buffer
     uint8_t seqNum = pkt_get_seqnum(pkt);
-    if((*curSeqNum) - seqNum < 0)return 1;//a packet who's late and duplicate
-    if((*curSeqNum) - seqNum > 31)return -2;//a packet from the future
-    if(buffer[((*startBuf) + ((*curSeqNum) - seqNum)) % BUFSIZE] == NULL)
-        buffer[((*startBuf) + ((*curSeqNum) - seqNum)) % BUFSIZE] = pkt;
+    if(seqNum - (*curSeqNum) < 0)return 1;//a packet who's late and duplicate
+    if(seqNum - (*curSeqNum) > 31)return -2;//a packet from the future
+
+    if(buffer[((*startBuf) + (seqNum - (*curSeqNum))) % BUFSIZE] == NULL)
+        buffer[((*startBuf) + (seqNum - (*curSeqNum))) % BUFSIZE] = pkt;
     else
         return 2;
 
-    if(buffer[*startBuf] == NULL)
+    if(buffer[*startBuf] == NULL)//the current first packet is missing, skipping
         return 0;
 
     //at this point, there is some data to extract from the buffer (consecutive frames)
@@ -83,6 +79,7 @@ int treatPkt(pkt_t ** buffer, uint8_t *startBuf, uint8_t *curSeqNum, pkt_t * pkt
     for(i = 0; i < BUFSIZE; i++)
         if((buffer[(*startBuf+i)%32]) != NULL)//counting the number of frame to output
             size++;
+
     int eof = 0;
     for(i = 0; i < size; i++) {
         if(pkt_get_length(buffer[(*startBuf)+i]) == 0 )
@@ -113,7 +110,7 @@ int sendACK(int sfd, uint8_t curNumSeq, uint32_t timestamp){
     pkt_t *pkt = pkt_new();
     pkt_set_length(pkt, 0);
     pkt_set_type(pkt, PTYPE_ACK);
-    pkt_set_seqnum(pkt, (const uint8_t) (curNumSeq%BUFSIZE));//TODO
+    pkt_set_seqnum(pkt, (const uint8_t) ((curNumSeq+1)%256));
     pkt_set_window(pkt, MAXWINDOWS-1);
     pkt_set_timestamp(pkt, timestamp);
     //emit the packet here
