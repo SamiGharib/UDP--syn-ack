@@ -32,9 +32,9 @@ pkt_status_code pkt_decode(const uint8_t *data, const size_t len, pkt_t *pkt)
 {
 		if(len < 12)
 				return E_UNCONSISTENT;
-		uLong crc_check;
+		uLong check_crc;
 		memcpy(((void *)pkt),(void *)data,2*sizeof(uint32_t));
-		if(pkt_get_type(pkt) == PTYPES_DATA){
+		if(pkt_get_type(pkt) == PTYPE_DATA){
 			pkt->length = ntohs(pkt->length);
 			uint8_t *payload = (uint8_t *)malloc(pkt->length*sizeof(uint8_t));
 			memcpy((void *)payload,((void *)data)+2*sizeof(uint32_t),pkt->length*sizeof(uint8_t));
@@ -61,7 +61,7 @@ pkt_status_code pkt_encode(const pkt_t* pkt, uint8_t *buf, size_t *len)
 				return E_NOMEM;
 		memset((void *)buf,0,*len);
 		pkt_t pkt_tmp;
-		memcpy((void *)&pkt_cmp,(void *)pkt,sizeof(pkt));
+		memcpy((void *)&pkt_tmp,(void *)pkt,sizeof(pkt));
 		uint16_t payload_size = pkt_get_length(pkt);
 		/* Converting field into Network Byte order */
 		if(pkt_tmp.length != 0)
