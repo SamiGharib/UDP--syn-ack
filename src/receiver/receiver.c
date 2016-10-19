@@ -78,11 +78,5 @@ int main(int argc, char ** argv){
         close(file);
     close(sfd);
 
-    //TODO remove this debug
-    printf("%s\n", host);
-    printf("%d\n", file);
-    printf("%d\n", port);
-
-
     return EXIT_SUCCESS;
 }

@@ -29,7 +29,7 @@ void pkt_del(pkt_t *pkt)
 }
 
 pkt_status_code pkt_decode(const uint8_t *data, const size_t len, pkt_t *pkt)
-{	
+{
 		if(len < 12)
 				return E_UNCONSISTENT;
 		memcpy(((void *)pkt),(void *)data,2*sizeof(uint32_t));
