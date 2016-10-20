@@ -9,6 +9,7 @@
 #include <string.h>
 #include <netinet/in.h>
 #include <malloc.h>
+#include <inttypes.h>
 
 
 #include "../shared/packet_interface.h"
@@ -43,7 +44,7 @@ pkt_status_code selective_repeat(int fd, int sfd);
  *      >= 0 : send ack the packet is or already have been treated
  *
  *  CODES:
- *      -2 : the packet is too far after the windows and can't be incorporated yet
+ *      -2 : the packet is too far after the windows and can't be incorporated yet - when the sender don't care about the windows
  *      -1 : the packet is broken
  *      0 : everything is ok packet has been incorporated
  *      1 : the packet is out of the windows and have already been render to the user

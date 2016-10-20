@@ -17,7 +17,7 @@
  * */
 pkt_status_code selective_repeat(int fd, int sfd){
 
-    pkt_t **buffer = malloc(sizeof(pkt_t*)*BUFSIZE);
+    pkt_t **buffer = (pkt_t**)calloc(sizeof(pkt_t*),BUFSIZE);
     int ret = -4, sel;
     uint8_t startBuffer = 0;
     uint8_t curSeqNum = 0;
@@ -25,7 +25,7 @@ pkt_status_code selective_repeat(int fd, int sfd){
     struct timeval tv;
     unsigned char buff[MAX_PACKET_SIZE];
     ssize_t readed;
-    size_t bufsize;
+    memset(&buff, 0, MAX_PACKET_SIZE);
 
     do {
         FD_ZERO(&srfd);
@@ -34,19 +34,19 @@ pkt_status_code selective_repeat(int fd, int sfd){
         tv.tv_usec = 0;
         sel = select(sfd+1, &srfd, NULL, NULL, &tv);
         if(sel > 0 && FD_ISSET(sfd,&srfd)){
-            memset(&buff, 0, MAX_PACKET_SIZE);
             readed = read(sfd, buff, MAX_PACKET_SIZE);
-            bufsize = MAX_PACKET_SIZE;
-            if(readed == -1)
+            if(readed == -1) {
+                free(buffer);
                 return E_UNCONSISTENT;
+            }
+
             pkt_t * pkt = pkt_new();
 
-            if(pkt_decode(buff, bufsize, pkt) != PKT_OK) {
+            if(pkt_decode(buff, MAX_PACKET_SIZE, pkt) != PKT_OK) {
                 pkt_del(pkt);
                 continue;
             }
             ret = treatPkt(buffer, &startBuffer, &curSeqNum, pkt, fd);
-
             if(ret >= 0)
                 sendACK(sfd, curSeqNum, pkt_get_timestamp(pkt));
 
@@ -60,11 +60,14 @@ pkt_status_code selective_repeat(int fd, int sfd){
 }
 
 int treatPkt(pkt_t ** buffer, uint8_t *startBuf, uint8_t *curSeqNum, pkt_t * pkt, int fd){
+    //TODO be carefull to not override the begining of the buffer - the origin of the segfault
+
 
     //try to insert it into the buffer
     uint8_t seqNum = pkt_get_seqnum(pkt);
     if(seqNum - (*curSeqNum) < 0)return 1;//a packet who's late and duplicate
     if(seqNum - (*curSeqNum) > 31)return -2;//a packet from the future
+    //TODO add a buff
 
     if(buffer[((*startBuf) + (seqNum - (*curSeqNum))) % BUFSIZE] == NULL)
         buffer[((*startBuf) + (seqNum - (*curSeqNum))) % BUFSIZE] = pkt;
@@ -76,16 +79,17 @@ int treatPkt(pkt_t ** buffer, uint8_t *startBuf, uint8_t *curSeqNum, pkt_t * pkt
 
     //at this point, there is some data to extract from the buffer (consecutive frames)
     int i, size = 0;
-    for(i = 0; i < BUFSIZE && size < BUFSIZE-1; i++)
-        if((buffer[(*startBuf+i)%32]) != NULL)//counting the number of frame to output
+    for(i = 0; i < BUFSIZE; i++)
+        if((buffer[(*startBuf+i)%BUFSIZE]) != NULL)//counting the number of frame to output
             size++;
 
     int eof = 0;
     for(i = 0; i < size; i++) {
-        if(pkt_get_length(buffer[(*startBuf)+i]) == 0 )
+
+        if(pkt_get_length(buffer[((*startBuf)+i)%BUFSIZE]) == 0 )
             eof =1;
         //outputting the packets
-        ssize_t yolo = write(fd, pkt_get_payload(buffer[(*startBuf + i) % 32]), pkt_get_length(buffer[(*startBuf + i) % 32]));
+        ssize_t yolo = write(fd, pkt_get_payload(buffer[(*startBuf + i) % BUFSIZE]), pkt_get_length(buffer[(*startBuf + i) % BUFSIZE]));
         yolo ++;//TODO find another fix
 
         //freeing the packets
@@ -110,7 +114,7 @@ int sendACK(int sfd, uint8_t curNumSeq, uint32_t timestamp){
     pkt_t *pkt = pkt_new();
     pkt_set_length(pkt, 0);
     pkt_set_type(pkt, PTYPE_ACK);
-    pkt_set_seqnum(pkt, (const uint8_t) ((curNumSeq+1)%256));
+    pkt_set_seqnum(pkt, (const uint8_t) ((curNumSeq)%256));
     pkt_set_window(pkt, MAXWINDOWS-1);
     pkt_set_timestamp(pkt, timestamp);
     //emit the packet here
