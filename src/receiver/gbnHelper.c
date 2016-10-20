@@ -76,7 +76,7 @@ int treatPkt(pkt_t ** buffer, uint8_t *startBuf, uint8_t *curSeqNum, pkt_t * pkt
 
     //at this point, there is some data to extract from the buffer (consecutive frames)
     int i, size = 0;
-    for(i = 0; i < BUFSIZE; i++)
+    for(i = 0; i < BUFSIZE && size < BUFSIZE-1; i++)
         if((buffer[(*startBuf+i)%32]) != NULL)//counting the number of frame to output
             size++;
 
