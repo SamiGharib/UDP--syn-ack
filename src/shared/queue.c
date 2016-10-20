@@ -65,7 +65,6 @@ void remove_queue(queue_t **head,queue_t **tail,queue_t *elem){
 				queue_del(elem);
 		}
 		else{
-				fprintf(stderr,"prev : %p , elem->next %p\n",elem->previous,elem->next);
 				(elem->previous)->next = elem->next;
 				(elem->next)->previous = elem->previous;
 				queue_del(elem);
