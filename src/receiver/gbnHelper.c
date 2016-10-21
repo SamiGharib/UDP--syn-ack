@@ -5,13 +5,6 @@
 #define BUFSIZE 32
 
 /*
- * TODO:
- *      receiving and decoding correctly the data
- *      windows set to  0 into the first packet of data ??
- *      MAX_WINDOWS_SIZE must be 32 !!
- * */
-
-/*
  * fd : file descriptor where we're gonna write the output
  * sfd : socket file descritor
  * */
@@ -47,6 +40,7 @@ pkt_status_code selective_repeat(int fd, int sfd){
                 continue;
             }
             ret = treatPkt(buffer, &startBuffer, &curSeqNum, pkt, fd);
+
             if(ret >= 0)
                 sendACK(sfd, curSeqNum, pkt_get_timestamp(pkt));
 
@@ -60,13 +54,15 @@ pkt_status_code selective_repeat(int fd, int sfd){
 }
 
 int treatPkt(pkt_t ** buffer, uint8_t *startBuf, uint8_t *curSeqNum, pkt_t * pkt, int fd){
-    //TODO be carefull to not override the begining of the buffer - the origin of the segfault
 
-
-    //try to insert it into the buffer
     uint8_t seqNum = pkt_get_seqnum(pkt);
     if(seqNum - (*curSeqNum) < 0)return 1;//a packet who's late and duplicate
-    if(seqNum - (*curSeqNum) > 31)return -2;//a packet from the future
+    //test to see if  there is a packet who's waaay after the current windows indicating that the sender don't care about the ack
+    if(seqNum - (*curSeqNum) - BUFSIZE*1.5 > BUFSIZE-1){
+        fprintf(stderr, "Le sender ne tient pas compte de la windows !\n");
+        exit(-1);
+    }
+    if(seqNum - (*curSeqNum) > BUFSIZE-1)return -2;//a packet from the future
     //TODO add a buff
 
     if(buffer[((*startBuf) + (seqNum - (*curSeqNum))) % BUFSIZE] == NULL)
@@ -110,6 +106,7 @@ int treatPkt(pkt_t ** buffer, uint8_t *startBuf, uint8_t *curSeqNum, pkt_t * pkt
 }
 
 int sendACK(int sfd, uint8_t curNumSeq, uint32_t timestamp){
+    //TODO: add the remaining free emplacement into the windows
     //creating the packet
     pkt_t *pkt = pkt_new();
     pkt_set_length(pkt, 0);
