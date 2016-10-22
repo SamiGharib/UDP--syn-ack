@@ -51,7 +51,7 @@ pkt_status_code selective_repeat(int fd, int sfd);
  *      2 : the packet have already been received and is currently into the buffer
  *      3 : EOF
  * */
-int treatPkt(pkt_t **buffer, uint8_t *startBuf, uint8_t *curSeqNum, pkt_t * pkt, int fd);
+int treatPkt(pkt_t **buffer, uint8_t *startBuf, uint8_t *curSeqNum, pkt_t * pkt, int fd, int *disp);
 
 
 /**
@@ -59,6 +59,6 @@ int treatPkt(pkt_t **buffer, uint8_t *startBuf, uint8_t *curSeqNum, pkt_t * pkt,
  * @param curNumSeq : the sequence number for the next waited paquet
  * @return : 0 on sucess and -1 if the write hasn't suceed
  * */
-int sendACK(int sfd, uint8_t curNumSeq, uint32_t timestamp);
+int sendACK(int sfd, uint8_t curNumSeq, uint32_t timestamp, int empty);
 
 #endif

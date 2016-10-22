@@ -3,6 +3,7 @@
 
 #define MAXWINDOWS 32
 #define BUFSIZE 32
+#define WINDOWSTOLERANCE 1.1
 
 /*
  * fd : file descriptor where we're gonna write the output
@@ -11,13 +12,13 @@
 pkt_status_code selective_repeat(int fd, int sfd){
 
     pkt_t **buffer = (pkt_t**)calloc(sizeof(pkt_t*),BUFSIZE);
-    int ret = -4, sel;
-    uint8_t startBuffer = 0;
-    uint8_t curSeqNum = 0;
+    int ret = -4, sel, disp = BUFSIZE-1;
+    uint8_t startBuffer = 0, curSeqNum = 0;
     fd_set srfd;
     struct timeval tv;
     unsigned char buff[MAX_DATA_PACKET_SIZE];
     ssize_t readed;
+    pkt_t *pkt = NULL;
     memset(&buff, 0, MAX_DATA_PACKET_SIZE);
 
     do {
@@ -33,40 +34,45 @@ pkt_status_code selective_repeat(int fd, int sfd){
                 return E_UNCONSISTENT;
             }
 
-            pkt_t * pkt = pkt_new();
+            pkt = pkt_new();
 
             if(pkt_decode(buff, MAX_DATA_PACKET_SIZE, pkt) != PKT_OK) {
                 pkt_del(pkt);
                 continue;
             }
-            ret = treatPkt(buffer, &startBuffer, &curSeqNum, pkt, fd);
+            ret = treatPkt(buffer, &startBuffer, &curSeqNum, pkt, fd, &disp);
 
             if(ret >= 0)
-                sendACK(sfd, curSeqNum, pkt_get_timestamp(pkt));
+                sendACK(sfd, curSeqNum, pkt_get_timestamp(pkt), disp);
 
         }
 
     }while(ret != 3);//mean an EOF
+
+    //sending tree more ack to be sure that the sender get them
+    sendACK(sfd, curSeqNum, pkt_get_timestamp(pkt), disp);
 
     free(buffer);
 
     return PKT_OK;
 }
 
-int treatPkt(pkt_t ** buffer, uint8_t *startBuf, uint8_t *curSeqNum, pkt_t * pkt, int fd){
+int treatPkt(pkt_t ** buffer, uint8_t *startBuf, uint8_t *curSeqNum, pkt_t * pkt, int fd, int * disp){
 
     uint8_t seqNum = pkt_get_seqnum(pkt);
     if(seqNum - (*curSeqNum) < 0)return 1;//a packet who's late and duplicate
     //test to see if  there is a packet who's waaay after the current windows indicating that the sender don't care about the ack
-    if(seqNum - (*curSeqNum) - BUFSIZE*1.5 > BUFSIZE-1){
+    if(((*curSeqNum > seqNum) ? 256+seqNum - *curSeqNum: seqNum - *curSeqNum) - BUFSIZE*WINDOWSTOLERANCE > BUFSIZE-1){
         fprintf(stderr, "Le sender ne tient pas compte de la windows !\n");
         exit(-1);
     }
     if(seqNum - (*curSeqNum) > BUFSIZE-1)return -2;//a packet from the future
     //TODO add a buff
 
-    if(buffer[((*startBuf) + (seqNum - (*curSeqNum))) % BUFSIZE] == NULL)
+    if(buffer[((*startBuf) + (seqNum - (*curSeqNum))) % BUFSIZE] == NULL) {
         buffer[((*startBuf) + (seqNum - (*curSeqNum))) % BUFSIZE] = pkt;
+        (*disp) --;
+    }
     else
         return 2;
 
@@ -75,13 +81,15 @@ int treatPkt(pkt_t ** buffer, uint8_t *startBuf, uint8_t *curSeqNum, pkt_t * pkt
 
     //at this point, there is some data to extract from the buffer (consecutive frames)
     int i, size = 0;
-    for(i = 0; i < BUFSIZE; i++)
+    for(i = 0; i < BUFSIZE && (buffer[(*startBuf+i)%BUFSIZE]) != NULL; i++)
         if((buffer[(*startBuf+i)%BUFSIZE]) != NULL)//counting the number of frame to output
             size++;
 
+    (*disp)+= size;
     int eof = 0;
-    for(i = 0; i < size; i++) {
-
+    for(i = 0; i < size; i++) {    //debug
+        printf("SeqNum: %d\t WSeqNum: %d\tDisp: %d\tAsk : %d \n", pkt_get_seqnum(pkt), *curSeqNum, *disp, ((*startBuf)+i)%BUFSIZE);
+        fflush(stdout);
         if(pkt_get_length(buffer[((*startBuf)+i)%BUFSIZE]) == 0 )
             eof =1;
         //outputting the packets
@@ -105,14 +113,13 @@ int treatPkt(pkt_t ** buffer, uint8_t *startBuf, uint8_t *curSeqNum, pkt_t * pkt
     return 0;
 }
 
-int sendACK(int sfd, uint8_t curNumSeq, uint32_t timestamp){
-    //TODO: add the remaining free emplacement into the windows
+int sendACK(int sfd, uint8_t curNumSeq, uint32_t timestamp, int empty){
     //creating the packet
     pkt_t *pkt = pkt_new();
     pkt_set_length(pkt, 0);
     pkt_set_type(pkt, PTYPE_ACK);
     pkt_set_seqnum(pkt, (const uint8_t) ((curNumSeq)%256));
-    pkt_set_window(pkt, MAXWINDOWS-1);
+    pkt_set_window(pkt, (const uint8_t) (empty == 0 ? 0 : empty - 1));
     pkt_set_timestamp(pkt, timestamp);
     //emit the packet here
     size_t len = 12 + pkt_get_length(pkt);
