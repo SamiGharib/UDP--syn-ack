@@ -6,67 +6,63 @@ queue_t *new_queue(){
 }
 
 void queue_del(queue_t *queue){
-		pkt_del(queue->packet);
-		free(queue->tv);
+		pkt_del(queue->pkt);
+		free(queue->end_time);
 		free(queue);
 }
 
-queue_t *enqueue(queue_t **head,queue_t **tail,pkt_t *packet,struct timeval *tv){
-		queue_t *new_head = new_queue();
-		if(new_head == NULL)
-				return new_head;
-		new_head->packet = packet;
-		new_head->tv = tv;
+void enqueue(queue_t **head,queue_t **tail,queue_t *elem){
 		if(*head == NULL && *tail == NULL){
-				*head = new_head;
-				*tail = new_head;
+				*head = elem;
+				*tail = elem;
+				(*head)->previous = NULL;
+				(*head)->next = NULL;
+				(*tail)->next = NULL;
+				(*tail)->previous = NULL;
 		}
 		else{
-				new_head->next = *head;
-				(*head)->previous = new_head;
-				*head = new_head;
-		}	
-		return new_head;
+				elem->previous = NULL;
+				elem->next = *head;
+				(*head)->previous = elem;
+				*head = elem;
+		}
 }
 
-void re_enqueue(queue_t **head,queue_t **tail,queue_t *elem){
-		elem->next = *head;
-		*head = elem;
-}
 queue_t *dequeue(queue_t **head,queue_t **tail){
 		if(*tail == NULL)
 				return NULL;
-		if(*tail == *head){
+		else if(*head == *tail){
 				queue_t *toReturn = *tail;
 				*tail = NULL;
 				*head = NULL;
 				return toReturn;
 		}
-		*tail = (*tail)->previous;
-		queue_t *toReturn = (*tail)->next;
-		(*tail)->next = NULL;
-		return toReturn;
-}
-
-void remove_queue(queue_t **head,queue_t **tail,queue_t *elem){
-		if(elem == *head && elem == *tail){
-				queue_del(elem);
-				*head = NULL;
-				*tail = NULL;
-		}
-		else if(elem == *head){
-				*head = (*head)->next;
-				(*head)->previous = NULL;
-				queue_del(elem);
-		}
-		else if(elem == *tail){
+		else{
+				queue_t *toReturn = *tail;
 				*tail = (*tail)->previous;
 				(*tail)->next = NULL;
+				return toReturn;
+		}
+}
+
+void remove_elem(queue_t **head,queue_t **tail,queue_t *elem){
+		if(*head == NULL && *tail == NULL)
+				return;
+		if(elem == *tail){
+				elem = dequeue(head,tail);
+				queue_del(elem);
+		}
+		else if(elem == *head){
+				*head = elem->next;
+				elem->next = NULL;
+				(*head)->previous = NULL;
 				queue_del(elem);
 		}
 		else{
 				(elem->previous)->next = elem->next;
 				(elem->next)->previous = elem->previous;
+				elem->next = NULL;
+				elem->previous = NULL;
 				queue_del(elem);
 		}
 }

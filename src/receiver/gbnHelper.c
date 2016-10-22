@@ -23,9 +23,9 @@ pkt_status_code selective_repeat(int fd, int sfd){
     uint8_t curSeqNum = 0;
     fd_set srfd;
     struct timeval tv;
-    unsigned char buff[MAX_PACKET_SIZE];
+    unsigned char buff[MAX_DATA_PACKET_SIZE];
     ssize_t readed;
-    memset(&buff, 0, MAX_PACKET_SIZE);
+    memset(&buff, 0, MAX_DATA_PACKET_SIZE);
 
     do {
         FD_ZERO(&srfd);
@@ -34,7 +34,7 @@ pkt_status_code selective_repeat(int fd, int sfd){
         tv.tv_usec = 0;
         sel = select(sfd+1, &srfd, NULL, NULL, &tv);
         if(sel > 0 && FD_ISSET(sfd,&srfd)){
-            readed = read(sfd, buff, MAX_PACKET_SIZE);
+            readed = read(sfd, buff, MAX_DATA_PACKET_SIZE);
             if(readed == -1) {
                 free(buffer);
                 return E_UNCONSISTENT;
@@ -42,7 +42,7 @@ pkt_status_code selective_repeat(int fd, int sfd){
 
             pkt_t * pkt = pkt_new();
 
-            if(pkt_decode(buff, MAX_PACKET_SIZE, pkt) != PKT_OK) {
+            if(pkt_decode(buff, MAX_DATA_PACKET_SIZE, pkt) != PKT_OK) {
                 pkt_del(pkt);
                 continue;
             }

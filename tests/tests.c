@@ -10,7 +10,7 @@
 #include "../src/sender/sender_help.h"
 #include "../src/shared/packet_interface.h"
 #include "../src/shared/queue.h"
-//#include "../receiver.h"
+#include "../src/receiver/gbnHelper.h"
 
 char *port = "12345";
 char *host = "::1";
@@ -246,7 +246,7 @@ void test_no_bytes(void){
 
 /* TEST OF THE SENDER AUXILIARIES FUNCTIONS */
 void test_prepare_packet_null(void){
-		pkt_t *pkt = prepare_packet(NULL,0,NULL);
+		pkt_t *pkt = prepare_packet(NULL,0);
 		if(pkt == NULL){
 				CU_FAIL();
 		}
@@ -264,8 +264,7 @@ void test_prepare_packet_in_length(void){
 				fprintf(stderr,"Not enough memory for test_prepare_in_length\n");
 				CU_FAIL();
 		}
-		struct timeval *tv = NULL;
-		pkt_t *pkt = prepare_packet(data,250*sizeof(uint8_t),&tv);
+		pkt_t *pkt = prepare_packet(data,250*sizeof(uint8_t));
 		if(pkt == NULL){
 				CU_FAIL();
 		}
@@ -283,8 +282,7 @@ void test_prepare_packet_just_length(void){
 				fprintf(stderr,"Not enough memory for test_prepare_in_length\n");
 				CU_FAIL();
 		}
-		struct timeval *tv = NULL;
-		pkt_t *pkt = prepare_packet(data,512*sizeof(uint8_t),&tv);
+		pkt_t *pkt = prepare_packet(data,512*sizeof(uint8_t));
 		if(pkt == NULL){
 				CU_FAIL();
 		}
@@ -302,8 +300,7 @@ void test_prepare_packet_out_length(void){
 				fprintf(stderr,"Not enough memory for test_prepare_packet_out_length\n");
 				CU_FAIL();
 		}
-		struct timeval *tv = NULL;
-		pkt_t *pkt = prepare_packet(data,600*sizeof(uint8_t),&tv);
+		pkt_t *pkt = prepare_packet(data,600*sizeof(uint8_t));
 		CU_ASSERT_PTR_NULL(pkt);
 		pkt_del(pkt);
 		free(data);
@@ -322,7 +319,17 @@ int main(void){
 		if(CU_add_test(pSuite,"Test prepare packet w/ payload NULL",test_prepare_packet_null) == NULL ||
 						CU_add_test(pSuite,"Test prepare packet w/ payload 250",test_prepare_packet_in_length) == NULL||
 						CU_add_test(pSuite,"Test prepare packet w/ payload 512",test_prepare_packet_just_length)== NULL ||
-						CU_add_test(pSuite,"Test prepare packet w/ payload 600",test_prepare_packet_out_length) == NULL){
+						CU_add_test(pSuite,"Test prepare packet w/ payload 600",test_prepare_packet_out_length) == NULL ||
+						CU_add_test(pSuite,"Test random file 300 bytes",test_300_random) == NULL ||
+						CU_add_test(pSuite,"Test random file 512 bytes",test_512_random) == NULL ||
+						CU_add_test(pSuite,"Test random file 1000 bytes",test_1000_random) == NULL ||
+						CU_add_test(pSuite,"Test zero file 300 bytes",test_300_zero) == NULL ||
+						CU_add_test(pSuite,"Test zero file 512 bytes",test_512_zero) == NULL ||
+						CU_add_test(pSuite,"Test zero file 1000 bytes",test_1000_zero) == NULL ||
+						CU_add_test(pSuite,"Test ones file 300 bytes",test_300_ones) == NULL ||
+						CU_add_test(pSuite,"Test ones file 512 bytes",test_512_ones) == NULL ||
+						CU_add_test(pSuite,"Test ones file 1000 bytes",test_1000_ones) == NULL ||
+						CU_add_test(pSuite,"Test no bytes file",test_no_bytes) == NULL){
 				CU_cleanup_registry();
 				return CU_get_error();
 		}

@@ -30,22 +30,25 @@
 #define __SENDER_H_
 #ifndef __STRUCT_FRAME_
 #define __STRUCT_FRAME_
-struct frame{
-		uint32_t type:3,
-				 window:5,
-				 seqnum:8,
-				 length:16;
-		uint32_t timestamp;
-		uint8_t *payload;
-		uint32_t crc;
-};
+struct pkt_time{
+		pkt_t *pkt;
+		struct timeval_t *tv;
+}pkt_time_t;
+#endif
+
+#ifndef __CONST_SENDER_
+#define __CONST_SENDER_
+/* Time out time */
 #define TIME_SEC 2
 #define TIME_USEC 500000
+/* Max time out -> 3*Max_Round_trip_time */
 #define MAX_TIME_SEC 6
 #define MAX_TIME_USEC 0
+/* rate of adjustement of the time out */
 #define DECREM_TIME_OUT 10 /* 10 percent */
 #define INCREM_TIME_OUT 5 /* 20 percent */
 #endif
+
 /**
   * Method that send data to dest_addr by the port "port".
   * @pre addr != NULL && port > 0
@@ -55,5 +58,5 @@ struct frame{
   */
 int send_data(const char *dest_addr,int port);
 
-pkt_t *prepare_packet(const uint8_t *data,uint16_t length,struct timeval **tv);
+pkt_t *prepare_packet(const uint8_t *data,uint16_t length);
 #endif
