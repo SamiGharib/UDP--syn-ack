@@ -37,7 +37,7 @@ pkt_status_code selective_repeat(int fd, int sfd);
  * @param startBuf : the current first emplacement of the sliding windows
  * @param curSeqNum :
  * @param data : the char extracted from the file who's ontaining all the data
- * @param len : sizeof the data in byte
+ * @param pkt : the packet who've been just received and who's gonna be threated
  * @param fd : the file descriptor into witch the data are outputed
  * @return : the value returned is the status of the application :
  *      < 0 : don't send an ack, there is a problem with the packet, need another
@@ -56,8 +56,8 @@ int treatPkt(pkt_t **buffer, uint8_t *startBuf, uint8_t *curSeqNum, pkt_t * pkt,
 
 /**
  * @param sfd : the socket file desciptor where the ack is gonna be send
- * @param curNumSeq the current sequence number fr the next waited paquet
- * @return : 0 on sucess and -1 if the write hasn't write it correctly
+ * @param curNumSeq : the sequence number for the next waited paquet
+ * @return : 0 on sucess and -1 if the write hasn't suceed
  * */
 int sendACK(int sfd, uint8_t curNumSeq, uint32_t timestamp);
 

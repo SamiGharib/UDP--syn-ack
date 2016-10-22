@@ -37,7 +37,7 @@ int main(int argc, char ** argv){
     else {
         host = argv[optind];
         port = atoi(argv[optind +1]);
-        if(port < 0 || port > 65536){//a bit of defensive prog on the port
+        if(port < 0 || port > 65536){//a bit of defensive prog on the port - is the port correct
             fprintf(stderr, "The given port isn't valid! Default used : \"12345\"\n");
             port = 12345;
         }
