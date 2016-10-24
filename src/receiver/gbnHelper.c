@@ -3,7 +3,8 @@
 
 #define MAXWINDOWS 32
 #define BUFSIZE 32
-#define WINDOWSTOLERANCE 1.1
+#define WINDOWSTOLERANCE 1.5
+#define ISDBG 1
 
 /*
  * fd : file descriptor where we're gonna write the output
@@ -37,6 +38,8 @@ pkt_status_code selective_repeat(int fd, int sfd){
             pkt = pkt_new();
 
             if(pkt_decode(buff, MAX_DATA_PACKET_SIZE, pkt) != PKT_OK) {
+                if(ISDBG)
+                    fprintf(stderr, "Erreur de décodage d'un pacquet !\n");
                 pkt_del(pkt);
                 continue;
             }
@@ -59,15 +62,21 @@ pkt_status_code selective_repeat(int fd, int sfd){
 
 int treatPkt(pkt_t ** buffer, uint8_t *startBuf, uint8_t *curSeqNum, pkt_t * pkt, int fd, int * disp){
 
+    printf("SeqNum: %d\t WSeqNum: %d\tDisp: %d\n", pkt_get_seqnum(pkt), *curSeqNum, *disp);
+    fflush(stdout);
+
     uint8_t seqNum = pkt_get_seqnum(pkt);
     if(seqNum - (*curSeqNum) < 0)return 1;//a packet who's late and duplicate
     //test to see if  there is a packet who's waaay after the current windows indicating that the sender don't care about the ack
-    if(((*curSeqNum > seqNum) ? 256+seqNum - *curSeqNum: seqNum - *curSeqNum) - BUFSIZE*WINDOWSTOLERANCE > BUFSIZE-1){
-        fprintf(stderr, "Le sender ne tient pas compte de la windows !\n");
+    if(((*curSeqNum > seqNum) ? 256+seqNum - *curSeqNum: seqNum - *curSeqNum) - BUFSIZE*WINDOWSTOLERANCE > 0){
+        if(ISDBG)
+            fprintf(stderr, "Le sender ne tient pas compte de la windows !\n");
+        free(buffer);
         exit(-1);
     }
-    if(seqNum - (*curSeqNum) > BUFSIZE-1)return -2;//a packet from the future
-    //TODO add a buff
+
+    if(seqNum - (*curSeqNum) > BUFSIZE-1)
+        return -2;//a packet from the future
 
     if(buffer[((*startBuf) + (seqNum - (*curSeqNum))) % BUFSIZE] == NULL) {
         buffer[((*startBuf) + (seqNum - (*curSeqNum))) % BUFSIZE] = pkt;
@@ -87,14 +96,14 @@ int treatPkt(pkt_t ** buffer, uint8_t *startBuf, uint8_t *curSeqNum, pkt_t * pkt
 
     (*disp)+= size;
     int eof = 0;
-    for(i = 0; i < size; i++) {    //debug
-        printf("SeqNum: %d\t WSeqNum: %d\tDisp: %d\tAsk : %d \n", pkt_get_seqnum(pkt), *curSeqNum, *disp, ((*startBuf)+i)%BUFSIZE);
-        fflush(stdout);
+    for(i = 0; i < size; i++) {//checking if the packet is an eof
         if(pkt_get_length(buffer[((*startBuf)+i)%BUFSIZE]) == 0 )
             eof =1;
+
         //outputting the packets
         ssize_t yolo = write(fd, pkt_get_payload(buffer[(*startBuf + i) % BUFSIZE]), pkt_get_length(buffer[(*startBuf + i) % BUFSIZE]));
-        yolo ++;//TODO find another fix
+        if(yolo != pkt_get_length(buffer[(*startBuf + i) % BUFSIZE]))
+            fprintf(stderr, "Attention ! Potentielle erreur d'écriture !\n");
 
         //freeing the packets
         pkt_del(buffer[(*startBuf + i) % 32]);
@@ -108,9 +117,8 @@ int treatPkt(pkt_t ** buffer, uint8_t *startBuf, uint8_t *curSeqNum, pkt_t * pkt
     //moving the current seqnum
     *curSeqNum = (uint8_t)((*curSeqNum+size) % 256);
 
-    if(eof)
-        return 3;
-    return 0;
+    //returning
+    return eof ? 3 : 1;
 }
 
 int sendACK(int sfd, uint8_t curNumSeq, uint32_t timestamp, int empty){
