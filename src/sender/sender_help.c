@@ -140,11 +140,9 @@ static void decrease_to(){
   */
 static int resend_data(int sfd,struct stailhead *head){
 		int first=1;
-		struct entry *itr;
+		struct entry *itr = head->tqh_first;
 		int i=0;
-		TAILQ_FOREACH(itr,head,entries){
-				if(i == actual_size_buffer)
-						return 0;
+		for(i=0;i<actual_size_buffer;i++){
 				struct timeval current_time;
 				int err = gettimeofday(&current_time,NULL);
 				if(err != 0){
@@ -177,13 +175,14 @@ static int resend_data(int sfd,struct stailhead *head){
 							first = 0;
 						}
 				}
+				itr = itr->entries.tqe_next;
 		}
 		return 0;
 }
 static void remove_from_queue(int lo,int hi,struct stailhead *head){
-		struct entry *itr = TAILQ_FIRST(head);
+		struct entry *itr = head->tqh_first;
 		while(itr != NULL){
-				struct entry *next = TAILQ_NEXT(itr,entries);
+				struct entry *next = itr->entries.tqe_next;
 				if(pkt_get_seqnum(itr->pkt) < hi && pkt_get_seqnum(itr->pkt) >= lo){
 						TAILQ_REMOVE(head,itr,entries);
 						decrease_to(); /* Decreasing the time out */
@@ -255,7 +254,7 @@ int send_data(const char *dest_addr,int port){
 				return -1;
 		}
 		/* Initializing the queue */
-		struct stailhead head = TAILQ_HEAD_INITIALIZER(head);
+		struct stailhead head;
 		TAILQ_INIT(&head);
 		/* Flags */
 		int end_of_data=0; /* flag to detect end of data */
@@ -265,7 +264,7 @@ int send_data(const char *dest_addr,int port){
 					tv.tv_sec = time_out.tv_sec;
 					tv.tv_sec = time_out.tv_usec;
 				}
-				if(end_of_data && TAILQ_EMPTY(&head)){
+				if(end_of_data && actual_size_buffer > 0){ 
 						if(try_end_communication == 2){
 								fprintf(stderr,"No acknowledgment receive after 3 end-of-communication packet. Disconnecting...\n");
 								int down = close(sfd);
@@ -304,7 +303,7 @@ int send_data(const char *dest_addr,int port){
 								continue;
 						}
 						else{
-								if(end_of_data && TAILQ_EMPTY(&head)){
+								if(end_of_data && actual_size_buffer > 0){
 										int down = close(sfd);
 										if(down == -1){
 												fprintf(stderr,"Error while closing socket : %s\n",strerror(errno));
