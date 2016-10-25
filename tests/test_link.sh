@@ -21,7 +21,7 @@ for filename in *.in; do
 		if ! ../sender ::1 1341 < "$filename" 2> sender.log ; then
 				echo "Crash du sender"
 				cat sender.log
-				err=1
+				exit 1
 		fi
 
 		sleep 5
@@ -34,7 +34,7 @@ for filename in *.in; do
 				if ! wait $receiver_pid ; then
 						echo "Crash du receiver"
 						cat receiver_"$base".log
-						err=1
+						exit 1
 				fi
 		fi
 		if [[ "$(md5sum $filename | awk '{print $1}')" != "$(md5sum $fileout | awk '{print $1}')" ]]; then
@@ -46,3 +46,4 @@ for filename in *.in; do
 		  echo "Le transfert est réussi!"
 		fi
 done
+exit 0

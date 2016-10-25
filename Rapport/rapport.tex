@@ -77,4 +77,14 @@
 	\section{Le \textit{receiver}}
 	
 	\section{Les tests}
+	
+	Pour les tests, nous considérons trois cas de fichiers. Le premier est le plus logique, un fichier remplis de caractère aléatoire. Le deuxième type est un fichier dont tout les bits sont à 1 et le dernier est un fichier dont tout les bits sont à 0.
+	
+	En outre, nous considérons diverse taille de fichier, allant de $300$ bytes jusque $40 000$bytes. 
+	
+	Nous avons deux scripts de test. Le premier ne simule pas de réseau (i.e. les pertes, les délais,etc.) Il permet entre autre de vérifier l'exactitude du programme en faisant abstraction du réseaux. Via ce script on peut donc vérifier que notre programme reprend les fonctionnalités de bases.
+	
+	Le deuxième script simule un réseau. Ce test permet donc de déterminer si notre programme prend bien en compte les différents éléments du réseau, comme les pertes de paquets, les délais, les altérations de paquets, etc.
+	
+	Les deux scripts fonctionne de la même manière. Pour chaque fichier ils vont lancer le transfert, si une erreur survient ou que le fichier est corrompu, le script s'arrête et renvoie 1. Si les tests sont réussis, le script renvoie 0.
 \end{document}
