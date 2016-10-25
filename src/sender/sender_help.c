@@ -97,10 +97,6 @@ static int send_packet(int sfd,uint8_t *data,uint16_t length,struct stailhead *h
 			memcpy((void *)last_data,(void *)data_toSend,len*sizeof(uint8_t));
 			last_length = len;
 			/* Adding the packet to the queue */
-			if(DEBUG_HELP){
-					fprintf(stderr,"packet sent : %d\n",pkt_get_seqnum(pkt));
-					fflush(stderr);
-			}
 			return add_to_queue(pkt,head);
 		}
 		return 0;
@@ -153,8 +149,6 @@ static int resend_data(int sfd,struct stailhead *head){
 				struct timeval cmp;
 				timersub(&current_time,itr->end_time,&cmp); /* We get the difference to update the time out struct */
 				if(cmp.tv_sec > 0){
-						fprintf(stderr,"resending packet %d\n",pkt_get_seqnum(itr->pkt));
-						fflush(stderr);
 						size_t len = pkt_get_length(itr->pkt)+3*sizeof(uint32_t);
 						uint8_t buf[len];
 						memset((void *)buf,0,len*sizeof(uint8_t));
@@ -260,11 +254,9 @@ int send_data(const char *dest_addr,int port){
 		int end_of_data=0; /* flag to detect end of data */
 		int try_end_communication = 0; /* Number of attemps to terminate properly the connection */
 		while(1){
-				if(tv.tv_sec == 0 && tv.tv_usec == 0){
-					tv.tv_sec = time_out.tv_sec;
-					tv.tv_sec = time_out.tv_usec;
-				}
-				if(end_of_data && actual_size_buffer > 0){ 
+				if(end_of_data && actual_size_buffer == 0){ 
+						fprintf(stderr,"Entering end-of-communication routines for the %d times\n",try_end_communication);
+						fflush(stderr);
 						if(try_end_communication == 2){
 								fprintf(stderr,"No acknowledgment receive after 3 end-of-communication packet. Disconnecting...\n");
 								int down = close(sfd);
@@ -280,6 +272,12 @@ int send_data(const char *dest_addr,int port){
 								return 0;
 						}
 						try_end_communication++;
+						tv.tv_sec = time_out.tv_sec;
+						tv.tv_usec = time_out.tv_usec;
+				}
+				else{
+						tv.tv_sec = 0;
+						tv.tv_usec = 0;
 				}
 				FD_SET(fileno(stdin),&readfds);
 				FD_SET(sfd,&readfds);
@@ -303,8 +301,10 @@ int send_data(const char *dest_addr,int port){
 								continue;
 						}
 						else{
-								if(end_of_data && actual_size_buffer > 0){
+								if(end_of_data && actual_size_buffer == 0){
 										int down = close(sfd);
+										fprintf(stderr,"receiving ack for end-of-communication packet. Closing connection\n");
+										fflush(stderr);
 										if(down == -1){
 												fprintf(stderr,"Error while closing socket : %s\n",strerror(errno));
 												close(sfd);
@@ -315,18 +315,10 @@ int send_data(const char *dest_addr,int port){
 								window_receiver = pkt_get_window(pkt);
 								pkt_count = 0;
 								acknowledge_pkt(pkt_get_seqnum(pkt),&head);
-								if(DEBUG_HELP){
-										fprintf(stderr,"pkt_get_window(pkt) = %d\n",pkt_get_window(pkt));
-										fflush(stderr);
-								}
 								if(pkt_get_window(pkt) == 0){
 										if(sigsetjmp(env,1)==0)
 												alarm(4);
 										else{
-												if(DEBUG_HELP){
-														fprintf(stderr,"sending the wake-up packet\n");
-														fflush(stderr);
-												}
 												if(send(sfd,(void *)last_data,last_length,0) == -1)
 														fprintf(stderr,"Error while waking up the receiver (window == 0) after 4 second : %s\n",strerror(errno));
 												alarm(4);
