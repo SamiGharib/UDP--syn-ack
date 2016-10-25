@@ -19,7 +19,7 @@ int create_socket(struct sockaddr_in6 *source_addr,
 				err= connect(sd,(struct sockaddr *)dest_addr,sizeof(struct sockaddr_in6));
 		}
 		else{
-				source_addr->sin6_port =htons( src_port);
+				source_addr->sin6_port =htons(src_port);
 				err = bind(sd,(struct sockaddr *)source_addr,sizeof(struct sockaddr_in6));
 		}
 		if(err == -1)

@@ -18,11 +18,11 @@
 #include <sys/time.h>
 #include <signal.h>
 #include <setjmp.h>
+#include <sys/queue.h>
 
 #include "../shared/packet_interface.h"
 #include "../shared/real_address.h"
 #include "../shared/create_socket.h"
-#include "../shared/queue.h"
 
 #endif
 

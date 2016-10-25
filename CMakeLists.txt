@@ -29,14 +29,12 @@ project(sender)
 add_executable(sender src/sender/sender.c)
 
 add_library(sender_help STATIC src/sender/sender_help.c)
-add_library(queue STATIC src/shared/queue.c)
 
 target_link_libraries(sender sender_help)
 target_link_libraries(sender packet_interface)
 target_link_libraries(sender real_adress)
 target_link_libraries(sender create_socket)
 target_link_libraries(sender sender_help)
-target_link_libraries(sender queue)
 
 enable_testing ()
 
@@ -45,7 +43,6 @@ target_link_libraries(test_lib sender_help)
 target_link_libraries(test_lib packet_interface)
 target_link_libraries(test_lib real_adress)
 target_link_libraries(test_lib create_socket)
-target_link_libraries(test_lib queue)
 
 set_target_properties (test_lib PROPERTIES LINK_FLAGS -Wl,-lcunit)
 

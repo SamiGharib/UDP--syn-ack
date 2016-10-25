@@ -1,17 +1,24 @@
 #include "sender_help.h"
-#define DEBUG_HELP 1
+#define DEBUG_HELP 0
 uint8_t next_seqnum = 0; /* The next sequence number that will be used */
-int free_to_go = 1; /* Number of packet we can send */
+int window_receiver = 1; /* window size of the receiver */
 int actual_size_buffer = 0; /* Acutal size of the buffer in wich we store packet not yet acknowledge (i.e. the number of packet in the buffer) */
-queue_t *head = NULL; /* Head of the queue used to store sent packet */
-queue_t *tail = NULL; /* Tail of the queue used to store sent packet */
+int pkt_count = 1; /* Count the number of packet sent after receiving an ack. This value cannot be larger than window_receiver */
 struct timeval time_out; /* Struct timeval representing the time a packet can be stored before being re-sent */
 /* Buffer to store the last data sent. We use a specific buffer because when we receive a 0 window size, the queue might be empty */
 uint8_t last_data[MAX_DATA_PACKET_SIZE];
 uint16_t last_length;
 sigjmp_buf env; /* Buffer to store environnement with sigseg */
-int acked=0; /* last seqnum received from the receiver (so when we receive an ack, we can
-			  acknowledge packet with seqnum such that : acked <= seqnum < seqnum_received */
+int next_expected=0; /* last seqnum received from the receiver (so when we receive an ack, we can
+			  acknowledge packet with seqnum such that : next_expected <= seqnum < seqnum_received */
+/* Variable for the queue */
+struct entry{
+		TAILQ_ENTRY(entry) entries;
+		pkt_t *pkt;
+		struct timeval *end_time;
+};
+
+TAILQ_HEAD(stailhead,entry);
 /**
   * SIGALRM handler 
   */
@@ -45,9 +52,9 @@ pkt_t *prepare_packet(const uint8_t *data,uint16_t length){
   * @param pkt : The packet that need to be saved
   * @return If everything went right, 0 is return. Otherwise -1 is returned and information about the error is sent to stderr
   */
-int add_to_queue(pkt_t *pkt){
-		queue_t *elem = new_queue();
-		elem->pkt = pkt;
+static int add_to_queue(pkt_t *pkt,struct stailhead *head){
+		struct entry *new_entry = (struct entry *)malloc(sizeof(struct entry));
+		new_entry->pkt = pkt;
 		struct timeval *endtime = (struct timeval *)malloc(sizeof(struct timeval));
 		int err = gettimeofday(endtime,NULL);
 		if(err != 0){
@@ -55,8 +62,8 @@ int add_to_queue(pkt_t *pkt){
 				return -1;
 		}
 		timeradd(endtime,&time_out,endtime);
-		elem->end_time = endtime;
-		enqueue(&head,&tail,elem);
+		new_entry->end_time = endtime;
+		TAILQ_INSERT_TAIL(head,new_entry,entries);
 		actual_size_buffer++;
 		return 0;
 }
@@ -68,7 +75,7 @@ int add_to_queue(pkt_t *pkt){
   * @param length : The length of the buffer (i.e. the size in bytes of the data)
   * @return If the packet is send and store without problem, this method return 0. Otherwise, -1 is returned and an error message is print on stderr
   */
-int send_packet(int sfd,uint8_t *data,uint16_t length){
+static int send_packet(int sfd,uint8_t *data,uint16_t length,struct stailhead *head){
 		pkt_t *pkt = prepare_packet(data,length);
 		if(pkt == NULL){
 				fprintf(stderr,"Error while creating a packet\n");
@@ -82,40 +89,47 @@ int send_packet(int sfd,uint8_t *data,uint16_t length){
 				fprintf(stderr,"Error while sending data to the socket : %s\n",strerror(errno));
 				return -1;
 		}
+		pkt_count++;
 		/* Not the last packet */
 		if(data != NULL){
-			free_to_go --;
 			/* Saving the last data and lenght of the data */
 			memset((void *)last_data,0,MAX_DATA_PACKET_SIZE);
 			memcpy((void *)last_data,(void *)data_toSend,len*sizeof(uint8_t));
 			last_length = len;
 			/* Adding the packet to the queue */
-			return add_to_queue(pkt);
+			if(DEBUG_HELP){
+					fprintf(stderr,"packet sent : %d\n",pkt_get_seqnum(pkt));
+					fflush(stderr);
+			}
+			return add_to_queue(pkt,head);
 		}
 		return 0;
 }
 /**
   * This function shall increase the timeout
   */
-void increase_to(){
-		struct timeval toAdd={0,time_out.tv_usec / INCREM_TIME_OUT};
-		timeradd(&time_out,&toAdd,&time_out);
-		if(time_out.tv_sec > 6 || (time_out.tv_sec == 6 && time_out.tv_usec > 0)){
-				time_out.tv_sec = 6;
-				time_out.tv_usec = 0;
+static void increase_to(){
+		long timeInMs = (time_out.tv_sec*1000000 + time_out.tv_usec)/INCREM_TIME_OUT;
+		struct timeval tmp = {timeInMs/1000000, timeInMs - timeInMs/1000000};
+		timeradd(&time_out,&tmp,&time_out);
+		if(time_out.tv_sec > MAX_TIME_SEC || (time_out.tv_sec == MAX_TIME_SEC && time_out.tv_usec > MAX_TIME_USEC)){
+				time_out.tv_sec = MAX_TIME_SEC;
+				time_out.tv_usec = MAX_TIME_USEC;
 		}
 }
 
 /**
   * This function shall decrease the time out
   */
-void decrease_to(){
-		struct timeval toSub={0,time_out.tv_usec / DECREM_TIME_OUT};
-		timersub(&time_out,&toSub,&time_out);
-		if(time_out.tv_sec < 2){
-				time_out.tv_sec = 2;
-				time_out.tv_usec = 0;
+static void decrease_to(){
+		long timeInMs = (time_out.tv_sec*1000000 +time_out.tv_usec)/DECREM_TIME_OUT;
+		struct timeval tmp = {timeInMs/1000000,timeInMs - timeInMs/1000000};
+		timersub(&time_out,&tmp,&time_out);
+		if(time_out.tv_sec < TIME_SEC || (time_out.tv_sec == TIME_SEC && time_out.tv_sec < TIME_USEC)){
+				time_out.tv_sec = TIME_SEC;
+				time_out.tv_usec = TIME_USEC;
 		}
+
 }
 /**
   * This function shall go through the queue and re-send the packet that has timed out. When a packet is no time out, 
@@ -124,9 +138,13 @@ void decrease_to(){
   * @param sfd: the socket to wich the data will be send
   * @return return 0 if no errors occurs, - 1 otherwise (and send information on stderr);
   */
-int resend_data(int sfd){
-		queue_t *itr = tail;
-		while(itr != NULL){
+static int resend_data(int sfd,struct stailhead *head){
+		int first=1;
+		struct entry *itr;
+		int i=0;
+		TAILQ_FOREACH(itr,head,entries){
+				if(i == actual_size_buffer)
+						return 0;
 				struct timeval current_time;
 				int err = gettimeofday(&current_time,NULL);
 				if(err != 0){
@@ -136,7 +154,9 @@ int resend_data(int sfd){
 				/* Comparing time to the exepected time */
 				struct timeval cmp;
 				timersub(&current_time,itr->end_time,&cmp); /* We get the difference to update the time out struct */
-				if(cmp.tv_sec > 0 || (cmp.tv_sec == 0 && cmp.tv_usec > 0)){
+				if(cmp.tv_sec > 0){
+						fprintf(stderr,"resending packet %d\n",pkt_get_seqnum(itr->pkt));
+						fflush(stderr);
 						size_t len = pkt_get_length(itr->pkt)+3*sizeof(uint32_t);
 						uint8_t buf[len];
 						memset((void *)buf,0,len*sizeof(uint8_t));
@@ -149,20 +169,30 @@ int resend_data(int sfd){
 								fprintf(stderr,"Error while re-sending data over the socket : %s\n",strerror(errno));
 								return -1;
 						}
-						itr = itr->previous;
-						queue_t *new_head = dequeue(&head,&tail);
-						if(new_head != NULL){
-							add_to_queue(new_head->pkt);
-							/* Incresing the time out */
+						timeradd(&current_time,&time_out,itr->end_time);
+						TAILQ_REMOVE(head,itr,entries);
+						TAILQ_INSERT_TAIL(head,itr,entries);
+						if(first){
 							increase_to();
+							first = 0;
 						}
 				}
-				else
-						return 0;
 		}
 		return 0;
 }
-
+static void remove_from_queue(int lo,int hi,struct stailhead *head){
+		struct entry *itr = TAILQ_FIRST(head);
+		while(itr != NULL){
+				struct entry *next = TAILQ_NEXT(itr,entries);
+				if(pkt_get_seqnum(itr->pkt) < hi && pkt_get_seqnum(itr->pkt) >= lo){
+						TAILQ_REMOVE(head,itr,entries);
+						decrease_to(); /* Decreasing the time out */
+						actual_size_buffer--;
+				}
+				itr = next;
+		}
+}
+				
 /**
   * This function shall go through the queue and remove eleme that we can acknowledge. A packet can be acknowledge if and only if is sequence number is less than the sequence number receive in the last 
   * acknowledgment packet.
@@ -170,27 +200,18 @@ int resend_data(int sfd){
   * @param last_seqnum : the last sequence number receive in an acknowledgment packet
   * @return -
   */
-void acknowledge_pkt(int last_seqnum){
-		if(last_seqnum == 0)
-				last_seqnum = 256;
-		queue_t *itr = tail;
-		while(itr != NULL){
-				if(pkt_get_seqnum(itr->pkt) < last_seqnum && pkt_get_seqnum(itr->pkt) >= acked){
-						printf("acknowledge : %d\n",pkt_get_seqnum(itr->pkt));
-						queue_t *toRemove = itr;
-						itr = itr->previous;
-						remove_elem(&head,&tail,toRemove);
-						decrease_to(); /* Decreasing the time out */
-						free_to_go++;
-						actual_size_buffer--;
-				}
-				else
-						itr = itr->previous;
+static void acknowledge_pkt(uint8_t last_seqnum,struct stailhead *head){
+		if(last_seqnum == 0 && next_expected != 0){
+				remove_from_queue(next_expected,256,head);
 		}
-		if(last_seqnum == 255)
-				acked = 0;
-		else
-				acked = last_seqnum-1;
+		else if(last_seqnum < next_expected){
+				remove_from_queue(next_expected,256,head);
+				remove_from_queue(0,last_seqnum,head);
+		}
+		else{
+				remove_from_queue(next_expected,last_seqnum,head);
+		}
+		next_expected = last_seqnum;
 }
 /** 
   * This function shall read data from stdin and send it by the socket to the defined address.
@@ -205,13 +226,14 @@ int send_data(const char *dest_addr,int port){
 		struct sockaddr_in6 addr;
 		const char *err = real_address(dest_addr,&addr);
 		if(err != NULL){
-				fprintf(stderr,"Error while resolving the hostname : %s\n",strerror(errno));
+				fprintf(stderr,"Error while resolving the hostname : %s\n",err);
 				return -1;
 		}
 		/* Creating the socket */
 		int sfd = create_socket(NULL,-1,&addr,port);
 		if(sfd < 0){
 				fprintf(stderr,"Error while resolving the hostname : %s\n",strerror(errno));
+				close(sfd);
 				return -1;
 		}
 		/* Setting up the various buffer to read data */
@@ -225,26 +247,39 @@ int send_data(const char *dest_addr,int port){
 		/* To store the return value of read/write */
 		ssize_t nBytes;
 		/* Starting multiplexing the files descriptors */
-		struct timeval tv={0,0};
+		struct timeval tv;
 		/* Setting up the sig handler */
 		if(signal(SIGALRM,sigalrm_handler) == SIG_ERR){
 				fprintf(stderr,"Error while setting up the handler for SIGALRM : %s\n",strerror(errno));
+				close(sfd);
 				return -1;
 		}
+		/* Initializing the queue */
+		struct stailhead head = TAILQ_HEAD_INITIALIZER(head);
+		TAILQ_INIT(&head);
+		/* Flags */
 		int end_of_data=0; /* flag to detect end of data */
 		int try_end_communication = 0; /* Number of attemps to terminate properly the connection */
 		while(1){
-				if(end_of_data && head == NULL && tail == NULL){
+				if(tv.tv_sec == 0 && tv.tv_usec == 0){
+					tv.tv_sec = time_out.tv_sec;
+					tv.tv_sec = time_out.tv_usec;
+				}
+				if(end_of_data && TAILQ_EMPTY(&head)){
 						if(try_end_communication == 2){
 								fprintf(stderr,"No acknowledgment receive after 3 end-of-communication packet. Disconnecting...\n");
+								int down = close(sfd);
+								if(down == -1){
+										fprintf(stderr,"Error while closing socket : %s\n",strerror(errno));
+										close(sfd);
+										return -1;
+								}
 								return 0;
 						}
-						if(send_packet(sfd,NULL,0) == -1){
+						if(send_packet(sfd,NULL,0,&head) == -1){
 								fprintf(stderr,"Error while sending the end-of-communication packet. Disconnecting brutally\n");
 								return 0;
 						}
-						tv.tv_sec = 2;
-						tv.tv_usec = 5;
 						try_end_communication++;
 				}
 				FD_SET(fileno(stdin),&readfds);
@@ -252,27 +287,15 @@ int send_data(const char *dest_addr,int port){
 				int rv = select(sfd+1,&readfds,NULL,NULL,&tv);
 				if(rv == -1){
 						fprintf(stderr,"Error while multiplexing the socket and stdin : %s\n",strerror(errno));
+						close(sfd);
 						return -1;
 				}
-				/* Data ready to be read on stdin and send to the dest */
-				if(FD_ISSET(fileno(stdin),&readfds) && free_to_go != 0 && actual_size_buffer <= MAX_WINDOW_SIZE){
-						nBytes = read(fileno(stdin),(char *)data_buffer,MAX_PAYLOAD_SIZE);
-						if(nBytes == -1){
-								fprintf(stderr,"Error while reading the data from stdin: %s. Terminating the connection\n",strerror(errno));
-								return -1;
-						}
-						else if(nBytes == 0){
-								end_of_data = 1;
-						}
-						else{
-								if(send_packet(sfd,data_buffer,nBytes) == -1)
-										return -1;
-						}
-				}
+				/* Receiving ack */
 				if(FD_ISSET(sfd,&readfds)){
 						nBytes = recv(sfd,(char *)ack_buffer,INFO_PACKET_SIZE,0);
 						if(nBytes == -1){
 								fprintf(stderr,"Errror while reading data from the socket : %s\n",strerror(errno));
+								close(sfd);
 								return -1;
 						}
 						pkt_t *pkt = pkt_new();
@@ -281,15 +304,30 @@ int send_data(const char *dest_addr,int port){
 								continue;
 						}
 						else{
-								printf("Receiving ack for packet : %d\n",pkt_get_seqnum(pkt));
-								if(end_of_data && head == NULL && tail == NULL)
+								if(end_of_data && TAILQ_EMPTY(&head)){
+										int down = close(sfd);
+										if(down == -1){
+												fprintf(stderr,"Error while closing socket : %s\n",strerror(errno));
+												close(sfd);
+												return -1;
+										}
 										return 0;
-								acknowledge_pkt(pkt_get_seqnum(pkt));
-								free_to_go = pkt_get_window(pkt);
+								}
+								window_receiver = pkt_get_window(pkt);
+								pkt_count = 0;
+								acknowledge_pkt(pkt_get_seqnum(pkt),&head);
+								if(DEBUG_HELP){
+										fprintf(stderr,"pkt_get_window(pkt) = %d\n",pkt_get_window(pkt));
+										fflush(stderr);
+								}
 								if(pkt_get_window(pkt) == 0){
 										if(sigsetjmp(env,1)==0)
 												alarm(4);
 										else{
+												if(DEBUG_HELP){
+														fprintf(stderr,"sending the wake-up packet\n");
+														fflush(stderr);
+												}
 												if(send(sfd,(void *)last_data,last_length,0) == -1)
 														fprintf(stderr,"Error while waking up the receiver (window == 0) after 4 second : %s\n",strerror(errno));
 												alarm(4);
@@ -298,10 +336,27 @@ int send_data(const char *dest_addr,int port){
 								else{
 									alarm(0);
 								}
-								
 						}
 				}
-				if(free_to_go != 0 && actual_size_buffer > 0)
-						resend_data(sfd);
+				/* Data ready to be read on stdin and send to the dest */
+				if(FD_ISSET(fileno(stdin),&readfds) && window_receiver != 0 && pkt_count <= window_receiver && actual_size_buffer <= MAX_WINDOW_SIZE){
+						nBytes = read(fileno(stdin),(char *)data_buffer,MAX_PAYLOAD_SIZE);
+						if(nBytes == -1){
+								fprintf(stderr,"Error while reading the data from stdin: %s. Terminating the connection\n",strerror(errno));
+								close(sfd);
+								return -1;
+						}
+						else if(nBytes == 0){
+								end_of_data = 1;
+						}
+						else{
+								if(send_packet(sfd,data_buffer,nBytes,&head) == -1){
+										close(sfd);
+										return -1;
+								}
+								pkt_count ++;
+						}
+				}
+				resend_data(sfd,&head);
 		}
 }

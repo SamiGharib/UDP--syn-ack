@@ -9,7 +9,6 @@
 
 #include "../src/sender/sender_help.h"
 #include "../src/shared/packet_interface.h"
-#include "../src/shared/queue.h"
 #include "../src/receiver/gbnHelper.h"
 
 char *port = "12345";
