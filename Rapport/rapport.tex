@@ -1,0 +1,80 @@
+\documentclass[12pt,notitlepage]{report}
+\usepackage[latin1,utf8]{inputenc}
+\usepackage[francais]{babel}
+\usepackage{listings}
+\usepackage{tikz}
+\title{INGI1341 - Implémentation d'un protocole de transfert fiable}
+\author{Ortegat Pierre (INSERT-NOMA-HERE) \& \\ Dubray Alexandre (1178-14-00)}
+\date{\today}
+\renewcommand{\thesection}{\Roman{section}}
+
+\newcommand{\pkg}[1]{\texttt{#1}}
+\newcommand{\op}[1]{\textsf{#1}}
+
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage[linguistics]{forest}
+
+
+
+\usepackage{color}
+
+\usepackage[top=3.5cm]{geometry}
+
+\definecolor{pblue}{rgb}{0.13,0.13,1}
+\definecolor{pgreen}{rgb}{0,0.5,0}
+\definecolor{pred}{rgb}{0.9,0,0}
+\definecolor{pgrey}{rgb}{0.46,0.45,0.48}
+
+\usepackage{listings}
+\lstset{language=C,
+  showspaces=false,
+  showtabs=false,
+  breaklines=true,
+  showstringspaces=false,
+  breakatwhitespace=true,
+  commentstyle=\color{pgreen},
+  keywordstyle=\color{pblue},
+  stringstyle=\color{pred},
+  basicstyle=\ttfamily,
+  moredelim=[il][\textcolor{pgrey}]{\$\$},
+  moredelim=[is][\textcolor{pgrey}]{\%\%}{\%\%}
+}
+
+\begin{document}
+\maketitle
+
+\section{Le \textit{sender}}
+	\subsection{L'architecture générale}
+	Nous passerons les détails de l'établissement de la connexion pour nous concentrer sur l'essentiel du protocole et des choix d'implémentations du côté du \textit{sender}. Supposons donc une connexion établie à un hôte distant. Faisons abstraction des contraintes (c.f code source) et supposons l'envoie d'une suite $S_1 , S_2, \ldots S_N$ de segment de données. Chaque segment envoyé sera stocké dans une queue\footnote{Nous avons utilisé l'implémentation d'une \textit{"tail queue"} définie dans la librairie \textit{BSD libc} (TAILQ)}. 
+	
+	Un des avantages d'une queue est que, une allocation dynamique de la mémoire permet une utilisation minimale de celle-ci lorsque le réseau est peu actif.	En outre, nous gardons facilement cette queue ordonnée par ordre de \textit{retransimission timer}\footnote{Remarquons que nous pourrions faire le raisonnement qui suit avec les numéros de séquences. L'opération optimisée ne serait donc plus la retransmission des paquets mais les acquittements}. Ainsi, lorsque nous parcourons notre queue pour retransmettre les paquets, nous savons que lorsque nous en rencontrons un qui n'a pas encore \textit{time out}, alors ceux qui suivent non plus.
+	
+	Lorsque nous recevons un acquittement, la première chose à faire est, si possible, retirer des paquets de la queue. Ensuite, il y a plusieurs possibilités, en fonction du champ \textit{window} du segment. Soit $k$ la valeur de ce champ.
+	\begin{itemize}
+		\item Si $k > 0$, alors on peut envoyé jusqu'à $k$ ($k$ compris) nouveau paquets.
+		\item Si $k = 0$, alors le \textit{receiver} n'a plus de place libre dans son buffer de réception et aucune nouvelles données ne peut être envoyée.. Entre alors en scène un système de temporisateur grâce à l'appel système alarm(). Le temps de ce temporisateur est fixé à quatre secondes (deux étant le RTT maximum). À chaque fois qu'un signal SIGALRM est intercepté, le dernier paquet envoyé et renvoyé. Ainsi, si les acquittements du \textit{receiver} se perdent, on peut le "réveiller".
+	\end{itemize}
+
+	Lorsqu'il n'y a plus de données à lire sur l'entrée standard, le segment de fin de connexion est envoyé si et seulement si toutes les données ont été envoyées ET acquittée. Ainsi, même si il y a des problèmes pour fermer la connexion, toutes les données auront été envoyée.
+	
+	\subsection{Le \textit{retransmission timeout}}
+	
+	Remarquons dans un premier temps, que le champ \textit{timestamp} des segments envoyés sont tous nuls. En effet, les élément de la queue dans laquelle nous stockons les segments sont en fait une structure qui contient le segment et le temps (via une struct timeval) auquel le segment devra être retransmit.
+	
+	Nous avons décider d'implémenter un \textit{retransmission timer} (RT0) dynamique. L'avantage par rapport à un RTO fixe est que l'hôte réagit mieux aux variations du réseaux. Lorsqu'un acquittement est reçu pour un paquet, le (RT0) est diminuer. 
+	
+	Lorsqu'un segment doit être renvoyé, le RTO est augmenté. Une retransmission peut être due à deux facteurs
+	\begin{itemize}
+		\item Une congestion du réseau. Alors, il est important de d'augmenter le RTO pour éviter d'envoyer trop de segment sur le réseau et, ce faisant, le saturer encore plus.
+		\item Une perte du segment. Celle-ci ne peut être devinée lorsque l'on augmente le RTO. Le fait d'augmenter le RTO alors que le réseau n'est pas congestionné n'est pas un problème vu que, lorsque le segment sera acquitté, le RTO sera diminué.
+	\end{itemize}
+	
+	\section{Le \textit{receiver}}
+	
+	\section{Les tests}
+\end{document}
