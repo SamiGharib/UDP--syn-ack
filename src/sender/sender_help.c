@@ -142,7 +142,7 @@ static int resend_data(int sfd,struct stailhead *head){
 		int first=1;
 		struct entry *itr = head->tqh_first;
 		int i=0;
-		for(i=0;i<actual_size_buffer;i++){
+		for(i=0;i<actual_size_buffer && itr != NULL;i++){
 				struct timeval current_time;
 				int err = gettimeofday(&current_time,NULL);
 				if(err != 0){
