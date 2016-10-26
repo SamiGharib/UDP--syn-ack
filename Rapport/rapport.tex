@@ -4,7 +4,7 @@
 \usepackage{listings}
 \usepackage{tikz}
 \title{INGI1341 - Implémentation d'un protocole de transfert fiable}
-\author{Ortegat Pierre (INSERT-NOMA-HERE) \& \\ Dubray Alexandre (1178-14-00)}
+\author{Ortegat Pierre (1954-14-00) \& \\ Dubray Alexandre (1178-14-00)}
 \date{\today}
 \renewcommand{\thesection}{\Roman{section}}
 
@@ -17,7 +17,8 @@
 \usepackage{graphicx}
 \usepackage{algorithm}
 \usepackage{algpseudocode}
-\usepackage[linguistics]{forest}
+%si je l'active, ca plante
+%\usepackage[linguistics]{forest}
 
 
 
@@ -74,17 +75,29 @@
 		\item Une perte du segment. Celle-ci ne peut être devinée lorsque l'on augmente le RTO. Le fait d'augmenter le RTO alors que le réseau n'est pas congestionné n'est pas un problème vu que, lorsque le segment sera acquitté, le RTO sera diminué.
 	\end{itemize}
 	
-	\section{Le \textit{receiver}}
+\section{Le \textit{receiver}}
+	\subsection{Architecture générale}
+	Comme précédemment dit, nous passerons les détails de la création de la connexion et nous nous concentrerons sur la façon dont le receiver va traiter les paquets qu'il reçoit.
 	
-	\section{Les tests}
+	La façon dont le receiver se comporte est plutôt simple et peut se décomposer en quelques étapes. Pour commencer, le receiver va établir la connexion et se mettre en attente de donnée sur la connexion. Dès qu'une donnée arrive il va tenter le la décoder en un paquet. Si le paquet n'est pas valide, il va être libéré de la mémoire pour en attendre un qui n'est pas corrompu. Si le paquet a su être créé avec succès, le receiver va le confronter à son buffer interne. A partir de ce point il y a plusieurs situation possible: 
+	\begin{itemize}
+	\item le paquet est avant la windows actuelle (le numéro de séquence du paquet est plus petit que le numéro de séquence attendu): dans ce cas, le paquet doit juste être confirmé au sender, il semblerait qu'un ack se soit perdu.
+	\item le paquet est après la windows actuelle le numéro de séquence du paquet est plus grand que le numéro de séquence attendu): ce cas-ci est fort semblable au précédent: le sender semble ne pas avoir encore réalisé qu'un paquet a été perdu. Pour résoudre cela, il suffit de transmettre un ack avec le paquet actuellement attendu au sender pour l'informer de quelles sont les informations actuellement manquantes pour continuer.
+	\item le paquet a un numéro de séquence repris dans le buffer et il n'est pas déjà dans le buffer : ce cas ci est le cas de base, il suffit d'insérer le paquet dans le buffer et de signaler au sender ou on en est dans la réception des données en envoyant un ack avec comme numéro de séquence le prochain paquet attendu.
+	\item le paquet peut être inséré dans le buffer mais est déjà présent : cas encore plus simple que le précédent: il semblerait qu'il y aie des erreurs de transmission. On droppe le paquet et on renvoie un ack.
+	\end{itemize}
 	
-	Pour les tests, nous considérons trois cas de fichiers. Le premier est le plus logique, un fichier remplis de caractère aléatoire. Le deuxième type est un fichier dont tout les bits sont à 1 et le dernier est un fichier dont tout les bits sont à 0.
+	Une fois que le paquet a été confronté au buffer, nous allons regarder si il est possible de sortir des données du buffer sur le file descriptor que l'on a (qui peut être stdout comme un fichier, ça ne change rien). Si le paquet qu'il nous manquait (c-a-d le paquet suivant les données que l'on a déjà sortit) est présent dans le buffer nous allons sortir toutes les données continues du buffer  et définir la prochaine donnée voulue sur la donnée juste après la dernière que l'on a sortit.
 	
-	En outre, nous considérons diverse taille de fichier, allant de $300$ bytes jusque $40 000$bytes. 
+	Finalement, une fois que nous avons traité touts les paquets, on envoie un ack si nécésaire et nous vérifions si nous avons un paquet de type EOF. Si c'est le cas, nous allons ack le paquet eof et quitter.
 	
-	Nous avons deux scripts de test. Le premier ne simule pas de réseau (i.e. les pertes, les délais,etc.) Il permet entre autre de vérifier l'exactitude du programme en faisant abstraction du réseaux. Via ce script on peut donc vérifier que notre programme reprend les fonctionnalités de bases.
-	
-	Le deuxième script simule un réseau. Ce test permet donc de déterminer si notre programme prend bien en compte les différents éléments du réseau, comme les pertes de paquets, les délais, les altérations de paquets, etc.
-	
-	Les deux scripts fonctionne de la même manière. Pour chaque fichier ils vont lancer le transfert, si une erreur survient ou que le fichier est corrompu, le script s'arrête et renvoie 1. Si les tests sont réussis, le script renvoie 0.
+\section{Partie critique}
+	La partie critique de notre implémentation, celle qui défini a rapidité de nos programme est le temps définie par les retransmission timer. En effet, en réseau parfait, nous allons à une vitesse fort convenable mais nos programmes se trouvent fortement ralentis dès que le réseau a des pertes. En effet on commencera à observer des moments de "blanc" durant lesquels, le sender n'a pas eu les ack nécessaire pour continuer et attend que ses times expirent.
+
+\section{Les tests}
+	Notre stratégie de tests, bien que fort simple suffit pour nous révéler touts les problèmes que l'on pourrait observer lors d'un transfert utilisant notre programme. En effet, quoi de plus simple que de tester si un fichier a été transféré correctement pour tester un programme de transfert de fichier ? C'est à cette idée que nous nous sommes raccrochés et nous l'avons appliqué tout le long de nos tests avec différentes tailles de fichier et différentes configuration. 
+
+
+
+
 \end{document}
