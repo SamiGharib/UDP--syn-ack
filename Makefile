@@ -29,7 +29,7 @@ sender_help.o: src/sender/sender_help.c
 	gcc -c src/sender/sender_help.c
 
 clean: FORCE
-	rm *.o
+	rm *.o *.log *.out
 
 clear: clean FORCE
 	rm sender receiver

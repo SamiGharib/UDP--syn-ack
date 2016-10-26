@@ -12,13 +12,13 @@ trap cleanup SIGINT #Kill les process en arrière plan en cas de ^-C
 simlink_pid=$!&
 echo "Startint test w/ sim link"
 # Itération sur les fichiers d'entrée
-for filename in *.in; do
+for filename in tests/*.in; do
 		echo "start test for $filename"
 		fileout=$( basename "$filename" .in).out
-		../receiver -f "$fileout" ::1 2456 2> receiver.log &
+		./receiver -f "$fileout" ::1 2456 2> receiver.log &
 		receiver_pid=$!
 		
-		if ! ../sender ::1 1341 < "$filename" 2> sender.log ; then
+		if ! ./sender ::1 1341 < "$filename" 2> sender.log ; then
 				echo "Crash du sender"
 				cat sender.log
 				exit 1

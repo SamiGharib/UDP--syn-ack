@@ -9,13 +9,13 @@ cleanup(){
 trap cleanup SIGINT #Kill les process en arrière plan en cas de ^-C
 # Itération sur les fichiers d'entrée
 echo "Starting test without sim link"
-for filename in *.in; do
+for filename in tests/*.in; do
 		echo "start test for $filename"
 		fileout=$( basename "$filename" .in).out
-		../receiver -f "$fileout" ::1 1234 2> receiver.log &
+		./receiver -f "$fileout" ::1 1234 2> receiver.log &
 		receiver_pid=$!
 		
-		if ! ../sender ::1 1234 < "$filename" 2> sender.log ; then
+		if ! ./sender ::1 1234 < "$filename" 2> sender.log ; then
 				echo "Crash du sender"
 				cat sender.log
 				exit 1
