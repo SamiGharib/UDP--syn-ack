@@ -3,7 +3,7 @@
 
 #define MAXWINDOWS 32
 #define BUFSIZE 32
-#define WINDOWSTOLERANCE 1.5
+#define WINDOWSTOLERANCE 7
 #define ISDBG 1
 
 /*
@@ -52,7 +52,7 @@ pkt_status_code selective_repeat(int fd, int sfd){
 
     }while(ret != 3);//mean an EOF
 
-    //sending tree more ack to be sure that the sender get them
+    //sending one more ack to be sure that the sender get them
     sendACK(sfd, curSeqNum, pkt_get_timestamp(pkt), disp);
 
     free(buffer);
@@ -68,12 +68,14 @@ int treatPkt(pkt_t ** buffer, uint8_t *startBuf, uint8_t *curSeqNum, pkt_t * pkt
     uint8_t seqNum = pkt_get_seqnum(pkt);
     if(seqNum - (*curSeqNum) < 0)return 1;//a packet who's late and duplicate
     //test to see if  there is a packet who's waaay after the current windows indicating that the sender don't care about the ack
+    /* //doesn't work when there is network latency
     if(((*curSeqNum > seqNum) ? 256+seqNum - *curSeqNum: seqNum - *curSeqNum) - BUFSIZE*WINDOWSTOLERANCE > 0){
         if(ISDBG)
             fprintf(stderr, "Le sender ne tient pas compte de la windows !\n");
         free(buffer);
         exit(-1);
     }
+     */
 
     if(seqNum - (*curSeqNum) > BUFSIZE-1)
         return -2;//a packet from the future
