@@ -49,7 +49,6 @@
 \begin{document}
 \maketitle
 
-\emph{Note: pour compiler, notre projet utilise cmake. Il est présent par défaut sur les machines la salle mais pas forcément sur toutes les distributions linux.}
 \section{Le \textit{sender}}
 	\subsection{L'architecture générale}
 	Nous passerons les détails de l'établissement de la connexion pour nous concentrer sur l'essentiel du protocole et des choix d'implémentations du côté du \textit{sender}. Supposons donc une connexion établie à un hôte distant. Faisons abstraction des contraintes (c.f code source) et supposons l'envoie d'une suite $S_1 , S_2, \ldots S_N$ de segment de données. Chaque segment envoyé sera stocké dans une queue\footnote{Nous avons utilisé l'implémentation d'une \textit{"tail queue"} définie dans la librairie \textit{BSD libc} (TAILQ)}. 
