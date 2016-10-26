@@ -1,3 +1,4 @@
+#define _DEFAULT_SOURCE
 #include "sender_help.h"
 #define DEBUG_HELP 0
 uint8_t next_seqnum = 0; /* The next sequence number that will be used */
@@ -22,7 +23,7 @@ TAILQ_HEAD(stailhead,entry);
 /**
   * SIGALRM handler 
   */
-static void sigalrm_handler(int signum){ siglongjmp(env,1);}
+static void sigalrm_handler(){ siglongjmp(env,1);}
 /**
   * This function shall return a pointer to a pkt_t struct containing the data as payload. 
   * 
