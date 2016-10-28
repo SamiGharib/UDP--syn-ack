@@ -36,14 +36,14 @@ target_link_libraries(sender real_adress)
 target_link_libraries(sender create_socket)
 target_link_libraries(sender sender_help)
 
-enable_testing ()
+#enable_testing ()
 
-add_executable (test_lib tests/tests.c)
-target_link_libraries(test_lib sender_help)
-target_link_libraries(test_lib packet_interface)
-target_link_libraries(test_lib real_adress)
-target_link_libraries(test_lib create_socket)
+#add_executable (test_lib tests/tests.c)
+#target_link_libraries(test_lib sender_help)
+#target_link_libraries(test_lib packet_interface)
+#target_link_libraries(test_lib real_adress)
+#target_link_libraries(test_lib create_socket)
 
-set_target_properties (test_lib PROPERTIES LINK_FLAGS -Wl,-lcunit)
+#set_target_properties (test_lib PROPERTIES LINK_FLAGS -Wl,-lcunit)
 
-add_test (test_lib test_lib)
+#add_test (test_lib test_lib)
