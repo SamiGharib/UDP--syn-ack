@@ -7,8 +7,8 @@ sender: src/sender/sender.c sender_help.o packet_interface.o real_address.o crea
 	gcc -o sender src/sender/sender.c sender_help.o packet_interface.o real_address.o create_socket.o -lz
 
 tests: tests/test_no_link.sh tests/test_link.sh FORCE
-	./tests/test_link.sh
 	./tests/test_no_link.sh
+	./tests/test_link.sh
 
 packet_interface.o: src/shared/packet_interface.c
 	gcc -c src/shared/packet_interface.c

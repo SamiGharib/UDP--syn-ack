@@ -28,7 +28,7 @@ for filename in tests/*.in; do
 		else
 				if ! wait $receiver_pid ; then
 						echo "Crash du receiver"
-						cat receiver_"$base".log
+						cat receiver"$base".log
 						exit 1
 				fi
 		fi
