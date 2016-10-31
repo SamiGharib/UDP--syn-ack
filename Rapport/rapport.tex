@@ -17,6 +17,7 @@
 \usepackage{graphicx}
 \usepackage{algorithm}
 \usepackage{algpseudocode}
+\usepackage[toc]{appendix}
 %si je l'active, ca plante
 %\usepackage[linguistics]{forest}
 
@@ -105,7 +106,28 @@
 	
 	Les deux scripts fonctionne de la même manière. Pour chaque fichier ils vont lancer le transfert, si une erreur survient ou que le fichier est corrompu, le script s'arrête et renvoie 1. Si les tests sont réussis, le script renvoie 0.
 
-
-
+\begin{appendices}
+\section{Résultat des tests d'interopérabilité}
+	Pour l'intégralité de nos tests d'interopérabilité, nous avons divisé les tests en quatre sous tests, tous fait avec un fichier aléatoire de 262 144 bytes ($512*512$) générés aléatoirement. Après chaque sous test, nous vérifions que le transfert s'est déroulé correctement avec md5sum. Voici la liste de nos tests:
+\begin{enumerate}
+\item Nous testons le sender de l'autre groupe avec notre receiver
+\item Nous testons le receiver de l'autre groupe avec notre sender
+\item Nous testons, avec linksim activé, leur sender et notre receiver
+\item Nous testons, avec linksim activé, leur receiver et notre sender
+\end{enumerate}	 
+	A chaque fois que nous devions utiliser linksim, il était réglé de la façon suivante : 
+	\begin{itemize}
+	\item 10\% de pertes
+	\item 10\% de corruption
+	\item 50 ms de délai
+	\item 25 ms de jitering
+	\end{itemize}
+\end{appendices}
+Voici la liste de nos tests  d'interopérabilité ainsi que leur résultat:
+\begin{itemize}
+\item Groupe 84 (Sébastien Strebelle \& Julian Roussieau): un première série de test découvre un problème  de leur coté, mais, après un rapide fix de leur part, tous les tests passent (ils avaient mal compris en quoi consistait l'EOF).
+\item Groupe 47 (Céline Deknop \& Adrien Hallet) : tous les tests passent du premier coup, aucune erreur.
+\item Groupe 
+\end{itemize}
 
 \end{document}
