@@ -47,6 +47,9 @@ struct pkt_time{
 /* rate of adjustement of the time out */
 #define DECREM_TIME_OUT 10 /* 10 percent */
 #define INCREM_TIME_OUT 5 /* 20 percent */
+/* MSL */
+#define MSL_SEC 120
+#define MSL_USEC 0
 #endif
 
 /**

@@ -8,7 +8,7 @@ cleanup(){
 		exit 0
 }
 trap cleanup SIGINT #Kill les process en arrière plan en cas de ^-C
-./link_sim -p 1341 -P 2456 -l 10 -d 10 -R &> link.log &
+./tests/link_sim -p 1341 -P 2456 -l 10 -d 10 -R &> link.log &
 simlink_pid=$!&
 echo "Startint test w/ sim link"
 # Itération sur les fichiers d'entrée
@@ -33,7 +33,7 @@ for filename in tests/*.in; do
 		else
 				if ! wait $receiver_pid ; then
 						echo "Crash du receiver"
-						cat receiver_"$base".log
+						cat receiver"$base".log
 						exit 1
 				fi
 		fi
