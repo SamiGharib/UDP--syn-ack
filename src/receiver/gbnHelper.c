@@ -118,7 +118,7 @@ int treatPkt(pkt_t ** buffer, uint8_t *startBuf, uint8_t *curSeqNum, pkt_t * pkt
 }
 
 int sendACK(int sfd, uint8_t curNumSeq, uint32_t timestamp, int empty){
-    fprintf(stderr ,"timestamp: %"PRIu32"\n", timestamp);
+    fprintf(stderr ,"timestamp: %#32x\n", timestamp);
     //creating the packet
     pkt_t *pkt = pkt_new();
     pkt_set_length(pkt, 0);
