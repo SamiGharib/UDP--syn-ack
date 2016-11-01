@@ -2,7 +2,6 @@
 #include "gbnHelper.h"
 
 #define BUFSIZE 32
-#define ISDBG 1
 
 /*
  * fd : file descriptor where we're gonna write the output
@@ -11,15 +10,18 @@
 pkt_status_code selective_repeat(int fd, int sfd){
 
     pkt_t **buffer = (pkt_t**)calloc(sizeof(pkt_t*),BUFSIZE);
+    unsigned char buff[MAX_DATA_PACKET_SIZE];
+
     int ret = -4, sel, disp = BUFSIZE-1;
     uint8_t startBuffer = 0, curSeqNum = 0;
+    uint32_t timestamp = 0;
+
     fd_set srfd;
     struct timeval tv;
-    unsigned char buff[MAX_DATA_PACKET_SIZE];
     ssize_t readed;
     pkt_t *pkt = NULL;
+
     memset(&buff, 0, MAX_DATA_PACKET_SIZE);
-    uint32_t timestamp = 0;
 
     do {
         FD_ZERO(&srfd);
@@ -65,8 +67,8 @@ pkt_status_code selective_repeat(int fd, int sfd){
 
 int treatPkt(pkt_t ** buffer, uint8_t *startBuf, uint8_t *curSeqNum, pkt_t * pkt, int fd, int * disp){
 
-    printf("SeqNum: %d\t WSeqNum: %d\tDisp: %d\n", pkt_get_seqnum(pkt), *curSeqNum, *disp);
-    fflush(stdout);
+    if(ISDBG)
+        fprintf(stderr, "SeqNum: %d\t WSeqNum: %d\tDisp: %d\n", pkt_get_seqnum(pkt), *curSeqNum, *disp);
 
     uint8_t seqNum = pkt_get_seqnum(pkt);
     if(seqNum - (*curSeqNum) < 0)
@@ -118,7 +120,6 @@ int treatPkt(pkt_t ** buffer, uint8_t *startBuf, uint8_t *curSeqNum, pkt_t * pkt
 }
 
 int sendACK(int sfd, uint8_t curNumSeq, uint32_t timestamp, int empty){
-    fprintf(stderr ,"timestamp: %#32x\n", timestamp);
     //creating the packet
     pkt_t *pkt = pkt_new();
     pkt_set_length(pkt, 0);
@@ -126,7 +127,7 @@ int sendACK(int sfd, uint8_t curNumSeq, uint32_t timestamp, int empty){
     pkt_set_seqnum(pkt, (const uint8_t) (curNumSeq%256));
     pkt_set_window(pkt, (const uint8_t) (empty == 0 ? 0 : empty - 1));
     pkt_set_timestamp(pkt, timestamp);
-    //emit the packet here
+    //the packet is set, emit it here
     size_t len = 12 + pkt_get_length(pkt);
     unsigned char buff[len];
     pkt_encode(pkt, buff, &len);
