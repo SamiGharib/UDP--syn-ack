@@ -1,9 +1,7 @@
 
 #include "gbnHelper.h"
 
-#define MAXWINDOWS 32
 #define BUFSIZE 32
-#define WINDOWSTOLERANCE 7
 #define ISDBG 1
 
 /*
@@ -21,6 +19,7 @@ pkt_status_code selective_repeat(int fd, int sfd){
     ssize_t readed;
     pkt_t *pkt = NULL;
     memset(&buff, 0, MAX_DATA_PACKET_SIZE);
+    uint32_t timestamp = 0;
 
     do {
         FD_ZERO(&srfd);
@@ -43,17 +42,21 @@ pkt_status_code selective_repeat(int fd, int sfd){
                 pkt_del(pkt);
                 continue;
             }
+
+            timestamp = pkt_get_timestamp(pkt);
+
             ret = treatPkt(buffer, &startBuffer, &curSeqNum, pkt, fd, &disp);
 
-            if(ret >= 0)
-                sendACK(sfd, curSeqNum, pkt_get_timestamp(pkt), disp);
+
+            if(ret >= 0)//TODO: move this where the packet hasn't been free yet
+                sendACK(sfd, curSeqNum, timestamp, disp);
 
         }
 
     }while(ret != 3);//mean an EOF
 
     //sending one more ack to be sure that the sender get them
-    sendACK(sfd, curSeqNum, pkt_get_timestamp(pkt), disp);
+    sendACK(sfd, curSeqNum, timestamp, disp);
 
     free(buffer);
 
@@ -66,16 +69,8 @@ int treatPkt(pkt_t ** buffer, uint8_t *startBuf, uint8_t *curSeqNum, pkt_t * pkt
     fflush(stdout);
 
     uint8_t seqNum = pkt_get_seqnum(pkt);
-    if(seqNum - (*curSeqNum) < 0)return 1;//a packet who's late and duplicate
-    //test to see if  there is a packet who's waaay after the current windows indicating that the sender don't care about the ack
-    /* //doesn't work when there is network latency
-    if(((*curSeqNum > seqNum) ? 256+seqNum - *curSeqNum: seqNum - *curSeqNum) - BUFSIZE*WINDOWSTOLERANCE > 0){
-        if(ISDBG)
-            fprintf(stderr, "Le sender ne tient pas compte de la windows !\n");
-        free(buffer);
-        exit(-1);
-    }
-     */
+    if(seqNum - (*curSeqNum) < 0)
+        return 1;//a packet who's late and duplicate
 
     if(seqNum - (*curSeqNum) > BUFSIZE-1)
         return -2;//a packet from the future
@@ -90,21 +85,20 @@ int treatPkt(pkt_t ** buffer, uint8_t *startBuf, uint8_t *curSeqNum, pkt_t * pkt
     if(buffer[*startBuf] == NULL)//the current first packet is missing, skipping
         return 0;
 
-    //at this point, there is some data to extract from the buffer (consecutive frames)
+    //at this point, there is some data to extract from the buffer (consecutive frames, at leat one)
     int i, size = 0;
     for(i = 0; i < BUFSIZE && (buffer[(*startBuf+i)%BUFSIZE]) != NULL; i++)
-        if((buffer[(*startBuf+i)%BUFSIZE]) != NULL)//counting the number of frame to output
-            size++;
+            size++;//counting the number of frame to output
 
     (*disp)+= size;
     int eof = 0;
     for(i = 0; i < size; i++) {//checking if the packet is an eof
         if(pkt_get_length(buffer[((*startBuf)+i)%BUFSIZE]) == 0 )
-            eof =1;
+            eof = 1;
 
         //outputting the packets
-        ssize_t yolo = write(fd, pkt_get_payload(buffer[(*startBuf + i) % BUFSIZE]), pkt_get_length(buffer[(*startBuf + i) % BUFSIZE]));
-        if(yolo != pkt_get_length(buffer[(*startBuf + i) % BUFSIZE]))
+        ssize_t written = write(fd, pkt_get_payload(buffer[(*startBuf + i) % BUFSIZE]), pkt_get_length(buffer[(*startBuf + i) % BUFSIZE]));
+        if(written != pkt_get_length(buffer[(*startBuf + i) % BUFSIZE]))
             fprintf(stderr, "Attention ! Potentielle erreur d'écriture !\n");
 
         //freeing the packets
@@ -124,11 +118,12 @@ int treatPkt(pkt_t ** buffer, uint8_t *startBuf, uint8_t *curSeqNum, pkt_t * pkt
 }
 
 int sendACK(int sfd, uint8_t curNumSeq, uint32_t timestamp, int empty){
+    fprintf(stderr ,"timestamp: %"PRIu32"\n", timestamp);
     //creating the packet
     pkt_t *pkt = pkt_new();
     pkt_set_length(pkt, 0);
     pkt_set_type(pkt, PTYPE_ACK);
-    pkt_set_seqnum(pkt, (const uint8_t) ((curNumSeq)%256));
+    pkt_set_seqnum(pkt, (const uint8_t) (curNumSeq%256));
     pkt_set_window(pkt, (const uint8_t) (empty == 0 ? 0 : empty - 1));
     pkt_set_timestamp(pkt, timestamp);
     //emit the packet here

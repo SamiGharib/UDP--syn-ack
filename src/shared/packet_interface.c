@@ -74,7 +74,7 @@ pkt_status_code pkt_encode(const pkt_t *pkt, uint8_t *buf, size_t *len) {
     *len = 0;
     uint8_t *header = (uint8_t *) pkt;
     memcpy(buf, header, 8);//dest src byte
-    memcpy(buf + 8, pkt_get_payload(pkt), pkt_get_length(pkt));//TODO manage the null case
+    memcpy(buf + 8, pkt_get_payload(pkt), pkt_get_length(pkt));
     *len += 12 + pkt_get_length(pkt);
 
     uint32_t yoloCRC = htonl(getCRC(pkt));
@@ -149,8 +149,8 @@ pkt_status_code pkt_set_crc(pkt_t *pkt, const uint32_t crc) {
 pkt_status_code pkt_set_payload(pkt_t *pkt,
                                 const uint8_t *data,
                                 const uint16_t length) {
-    free(pkt->data);//TODO replace that with realoc
-    uint8_t *pt = (uint8_t *) malloc(sizeof(uint8_t) * length);
+    pkt->data = realloc(pkt->data, length);
+    uint8_t *pt = (uint8_t*)memset(pkt->data, 0,  length);
     if (pt == NULL)return E_NOMEM;
     memcpy(pt, data, length);
     pkt_set_length(pkt, length);
