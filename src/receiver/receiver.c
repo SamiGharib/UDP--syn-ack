@@ -12,7 +12,6 @@
 
 int main(int argc, char ** argv){
     int port, opt, file = -1;
-    //TODO modify the way we handle the extenal files to have a name and a boolean instead of juste a name (much simpler)
     char *host;
 
     //receiver [-f X] <host> <port>
@@ -32,17 +31,18 @@ int main(int argc, char ** argv){
         host = "::1";
         port = 12345;
         fprintf(stderr, "Usage: receiver [-f X] <host> <port>\n");
-        fprintf(stderr, "localhost and port 12345 are gonna be used.\n");
+        fprintf(stderr, "::1 and port 12345 are gonna be used.\n");
     }
     else {
         host = argv[optind];
         port = atoi(argv[optind +1]);
-        if(port < 0 || port > 65536){//a bit of defensive prog on the port - is the port correct
+        if(port < 0 || port > 65536){//a bit of defensive prog on the port - is the port correct ?
             fprintf(stderr, "The given port isn't valid! Default used : \"12345\"\n");
             port = 12345;
         }
     }
 
+    //setting the file descriptor correctly with consideration of the arguments
     if(file == -1) {
         fprintf(stderr, "Output set to stdout\n");
         file = fileno(stdout);
@@ -56,7 +56,6 @@ int main(int argc, char ** argv){
         return EXIT_FAILURE;
     }
 
-    //TODO: maybe transform that into a function
     int sfd = create_socket(&addr, port, NULL, -1);
     if(sfd > 0 && wait_for_client(sfd) < 0){
         fprintf(stderr, "Could not connect the socket after the first message.\n");
