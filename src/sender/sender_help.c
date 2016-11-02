@@ -212,6 +212,9 @@ static void remove_from_queue(int lo,int hi,struct stailhead *head){
   * @return -
   */
 static void acknowledge_pkt(uint8_t last_seqnum,struct stailhead *head){
+	if(DEBUG_HELP){
+		fprintf(stderr,"next_expected : %"PRIu8" ; last_seqnum : %"PRIu8"\n",next_expected,last_seqnum);
+	}
 	if(last_seqnum == 0 && next_expected != 0){
 		remove_from_queue(next_expected,256,head);
 	}
@@ -232,6 +235,14 @@ static void acknowledge_pkt(uint8_t last_seqnum,struct stailhead *head){
   * @return: if the packet is an old ack, the function return 1. If the acknowledgment is not an old ack, 0 is returned. If an error occured, -1 is returned.
   */
 static int is_old_ack(pkt_t *pkt){
+	if(next_expected+32 <= 255){
+		if(pkt_get_seqnum(pkt) <= next_expected || pkt_get_seqnum(pkt) > next_expected+32)
+			return 1;
+	}
+	else{
+		if(pkt_get_seqnum(pkt) <= next_expected && pkt_get_seqnum(pkt) > 32-(255-next_expected))
+			return 1;
+	}
 	struct timeval current_time;
 	int err = gettimeofday(&current_time,NULL);
 	if(err != 0){
@@ -389,12 +400,15 @@ int send_data(const char *dest_addr,int port){
 				continue;
 			}
 			else if(is_old_ack(pkt)){
-				fprintf(stderr,"Receiving old ack. Discared\n");
+				fprintf(stderr,"Receiving old ack. Discared (next_expected = %d ; pkt_seqnum = %"PRIu8"\n",next_expected,pkt_get_seqnum(pkt));
 				FD_CLR(fileno(stdin),&readfds);
 				FD_CLR(sfd,&readfds);
 				continue;
 			}
 			else{
+				if(DEBUG_HELP){
+					fprintf(stderr,"Receiving ack for pkt %"PRIu8"\n",pkt_get_seqnum(pkt));
+				}
 				if(end_of_data && actual_size_buffer == 0){
 					pkt_del(pkt);
 					int down = close(sfd);
