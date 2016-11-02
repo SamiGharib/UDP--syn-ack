@@ -19,6 +19,7 @@
 #include <signal.h>
 #include <setjmp.h>
 #include <sys/queue.h>
+#include <inttypes.h>
 
 #include "../shared/packet_interface.h"
 #include "../shared/real_address.h"
@@ -48,7 +49,7 @@ struct pkt_time{
 #define DECREM_TIME_OUT 10 /* 10 percent */
 #define INCREM_TIME_OUT 5 /* 20 percent */
 /* MSL */
-#define MSL_SEC 120
+#define MSL_SEC 510 /* 255 seqnum * 2sec */
 #define MSL_USEC 0
 #endif
 

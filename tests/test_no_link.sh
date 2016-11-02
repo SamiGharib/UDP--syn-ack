@@ -15,7 +15,7 @@ for filename in tests/*.in; do
 		./receiver -f "$fileout" ::1 1234 2> receiver.log &
 		receiver_pid=$!
 		
-		if ! ./sender ::1 1234 < "$filename" 2> sender.log ; then
+		if ! time ./sender ::1 1234 < "$filename"  2> sender.log ; then
 				echo "Crash du sender"
 				cat sender.log
 				exit 1
@@ -40,5 +40,6 @@ for filename in tests/*.in; do
 		else
 		  echo "Le transfert est réussi!"
 		fi
+		kill -9 $receiver_pid
 done
 exit 0

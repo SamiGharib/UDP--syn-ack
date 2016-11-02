@@ -1,6 +1,6 @@
 #define _DEFAULT_SOURCE
 #include "sender_help.h"
-#define DEBUG_HELP 0
+#define DEBUG_HELP 1
 #define MASK_LESS_BITS(k,n) (k & ((1 << n) -1)) /*Mask to get the n last bit of k */
 uint8_t next_seqnum = 0; /* The next sequence number that will be used */
 int window_receiver = 1; /* window size of the receiver */
@@ -17,7 +17,6 @@ int next_expected=0; /* last seqnum received from the receiver (so when we recei
 struct entry{
 	TAILQ_ENTRY(entry) entries;
 	pkt_t *pkt;
-	struct timeval *end_time;
 };
 
 TAILQ_HEAD(stailhead,entry);
@@ -48,21 +47,7 @@ pkt_t *prepare_packet(const uint8_t *data,uint16_t length){
 		return NULL;
 	return pkt;
 }
-/**
-  * This function shall create a queue_t structure, in order to store the packet juste sent, and enqueue it.
-  *
-  * @param pkt : The packet that need to be saved
-  * @return If everything went right, 0 is return. Otherwise -1 is returned and information about the error is sent to stderr
-  */
-static int add_to_queue(pkt_t *pkt,struct stailhead *head,struct timeval *endtime){
-	struct entry *new_entry = (struct entry *)malloc(sizeof(struct entry));
-	new_entry->pkt = pkt;
-	timeradd(endtime,&time_out,endtime);
-	new_entry->end_time = endtime;
-	TAILQ_INSERT_TAIL(head,new_entry,entries);
-	actual_size_buffer++;
-	return 0;
-}
+
 /**
  * This function shall create a packet whit the data passed as argument, send it by the socket and store the packet in the queue.
  *
@@ -78,13 +63,13 @@ static int send_packet(int sfd,uint8_t *data,uint16_t length,struct stailhead *h
 		return -1;
 	}
 	/* Initializing the end_time to put the timestamp */
-	struct timeval *endtime = (struct timeval *)malloc(sizeof(struct timeval));
-	int err = gettimeofday(endtime,NULL);
+	struct timeval ts;
+	int err = gettimeofday(&ts,NULL);
 	if(err != 0){
 		fprintf(stderr,"Error while getting time of day to send packet\n");
 		return -1;
 	}
-	pkt->timestamp = (MASK_LESS_BITS(endtime->tv_sec,12) << 20) | MASK_LESS_BITS(endtime->tv_usec,20);
+	pkt->timestamp = (((uint32_t)MASK_LESS_BITS(ts.tv_sec,12)) << 20) | (uint32_t)MASK_LESS_BITS(ts.tv_usec,20);
 	size_t len = MAX_DATA_PACKET_SIZE;
 	uint8_t data_toSend[MAX_DATA_PACKET_SIZE];
 	memset((void *)data_toSend,0,MAX_DATA_PACKET_SIZE*sizeof(uint8_t));
@@ -101,8 +86,14 @@ static int send_packet(int sfd,uint8_t *data,uint16_t length,struct stailhead *h
 		memcpy((void *)last_data,(void *)data_toSend,len*sizeof(uint8_t));
 		last_length = len;
 		/* Adding the packet to the queue */
-		return add_to_queue(pkt,head,endtime);
+		struct entry *new_entry = (struct entry *)malloc(sizeof(struct entry));
+		new_entry->pkt = pkt;
+		TAILQ_INSERT_TAIL(head,new_entry,entries);
+		actual_size_buffer++;
+		return 0;
 	}
+	else
+		pkt_del(pkt);
 	return 0;
 }
 /**
@@ -132,6 +123,29 @@ static void decrease_to(){
 
 }
 /**
+  * This function shall see if a packet has timed out (i.e. he has been sent since more that time_out.tv_sec sec and time_out.tv_usec micro-sec)
+  * 
+  * @param pkt: A pointer to the packet that'll be check
+  *
+  * @return If the packet has timeout then the function return 1. 0 is returned otherwise and if an error occured, -1 is returned and informations are printed on stderr
+  */
+static int has_time_out(pkt_t *pkt){
+	struct timeval current_time;
+	int err = gettimeofday(&current_time,NULL);
+	if(err != 0){
+		fprintf(stderr,"Error while getting time of day to check if the ack w/ seqnum %d is an old ack.\n",pkt_get_seqnum(pkt));
+		return -1;
+	}
+	uint32_t ts = (uint32_t)MASK_LESS_BITS(pkt->timestamp >> 20,12), tus = (uint32_t)MASK_LESS_BITS(pkt->timestamp,20);
+	uint32_t cs = (uint32_t)MASK_LESS_BITS(current_time.tv_sec,12), cus = (uint32_t)MASK_LESS_BITS(current_time.tv_usec,20);
+	uint32_t sec = cs - ts;
+	uint32_t usec = cus -tus;
+	if( sec > time_out.tv_sec || (sec == time_out.tv_sec && usec >= time_out.tv_usec))
+		return 1;
+	return 0;
+}
+
+/**
   * This function shall go through the queue and re-send the packet that has timed out. When a packet is no time out, 
   * we know that the packet behind (insert later) it has no timed out either.
   *
@@ -143,16 +157,7 @@ static int resend_data(int sfd,struct stailhead *head){
 	struct entry *itr = head->tqh_first;
 	int i=0;
 	for(i=0;i<actual_size_buffer && itr != NULL;i++){
-		struct timeval current_time;
-		int err = gettimeofday(&current_time,NULL);
-		if(err != 0){
-			fprintf(stderr,"Error while getting the current time to re-send data. Aborting operation\n");
-			return -1;
-		}
-		/* Comparing time to the exepected time */
-		struct timeval cmp;
-		timersub(&current_time,itr->end_time,&cmp); /* We get the difference to update the time out struct */
-		if(cmp.tv_sec > 0){
+		if(has_time_out(itr->pkt)){
 			size_t len = pkt_get_length(itr->pkt)+3*sizeof(uint32_t);
 			uint8_t buf[len];
 			memset((void *)buf,0,len*sizeof(uint8_t));
@@ -165,7 +170,13 @@ static int resend_data(int sfd,struct stailhead *head){
 				fprintf(stderr,"Error while re-sending data over the socket : %s\n",strerror(errno));
 				return -1;
 			}
-			timeradd(&current_time,&time_out,itr->end_time);
+			struct timeval ct;
+			int err = gettimeofday(&ct,NULL);
+			if(err != 0){
+				fprintf(stderr,"Error while getting time of day to update timestamp of a packet after re-sending\n");
+				return -1;
+			}
+			itr->pkt->timestamp = ((uint32_t)(MASK_LESS_BITS(ct.tv_sec,12)) << 20) |(uint32_t)MASK_LESS_BITS(ct.tv_usec,20);
 			TAILQ_REMOVE(head,itr,entries);
 			TAILQ_INSERT_TAIL(head,itr,entries);
 			if(first){
@@ -173,7 +184,7 @@ static int resend_data(int sfd,struct stailhead *head){
 				first = 0;
 			}
 		}
-	itr = itr->entries.tqe_next;
+		itr = itr->entries.tqe_next;
 	}
 	return 0;
 }
@@ -184,8 +195,7 @@ static void remove_from_queue(int lo,int hi,struct stailhead *head){
 		struct entry *next = itr->entries.tqe_next;
 		if(pkt_get_seqnum(itr->pkt) < hi && pkt_get_seqnum(itr->pkt) >= lo){
 			TAILQ_REMOVE(head,itr,entries);
-			free(itr->pkt);
-			free(itr->end_time);
+			pkt_del(itr->pkt);
 			free(itr);
 			decrease_to(); /* Decreasing the time out */
 			actual_size_buffer--;
@@ -228,12 +238,48 @@ static int is_old_ack(pkt_t *pkt){
 		fprintf(stderr,"Error while getting time of day to check if the ack w/ seqnum %d is an old ack.\n",pkt_get_seqnum(pkt));
 		return -1;
 	}
-	int sec = MASK_LESS_BITS(current_time.tv_sec,12) - (pkt->timestamp >> 20);
-	int usec = MASK_LESS_BITS(current_time.tv_usec,20) - MASK_LESS_BITS(pkt->timestamp,20);
+	uint32_t ts = (uint32_t)MASK_LESS_BITS(pkt->timestamp >> 20,12), tus = (uint32_t)MASK_LESS_BITS(pkt->timestamp,20);
+	uint32_t cs = (uint32_t)MASK_LESS_BITS(current_time.tv_sec,12), cus =(uint32_t) MASK_LESS_BITS(current_time.tv_usec,20);
+	uint32_t sec = cs - ts;
+	uint32_t usec = cus -tus;
 	if( sec > MSL_SEC || (sec == MSL_SEC && usec >= MSL_USEC))
 		return 1;
 	return 0;
 }
+
+/**
+  * This function shall set the timer for the select call. If the first packet has timed out, the timer is set to 0 s and 0us
+  *
+  * @param tv: a pointer to the timer
+  * @param head: a pointer to the head of the queue (to get the timestamp of the first packet)
+  *
+  * @return -1 if an error occur, 0 otherwise
+  */
+static int set_timer(struct timeval *tv,struct stailhead *head){
+	/* Initiating the timer for the select() call to the time the first packet in the queue has left before TO */
+	struct timeval t;
+	int err = gettimeofday(&t,NULL);
+	if(err != 0){
+		fprintf(stderr,"Error while getting time of day to set timer for select()\n");
+		return -1;
+	}
+	uint32_t ds = (uint32_t)MASK_LESS_BITS(t.tv_sec,12) - (uint32_t)MASK_LESS_BITS((head->tqh_first)->pkt->timestamp >> 20,12);
+	uint32_t dus = (uint32_t)MASK_LESS_BITS(t.tv_usec,20) - (uint32_t)MASK_LESS_BITS((head->tqh_first)->pkt->timestamp,20);
+	if(dus < 0){
+		ds--;
+		dus += 999999;
+	}
+	if(ds > MASK_LESS_BITS(time_out.tv_sec,12) || (ds == MASK_LESS_BITS(time_out.tv_sec,12) && dus > MASK_LESS_BITS(time_out.tv_usec,20))){
+		tv->tv_sec = 0;
+		tv->tv_usec = 0;
+	}
+	else{
+		tv->tv_sec = ds;
+		tv->tv_usec = dus;
+	}
+	return 0;
+}
+
 /** 
   * This function shall read data from stdin and send it by the socket to the defined address.
   * Once EOF is encountered, the function shall send an end-of-communication segment if and only if all the data has been acknowledged.
@@ -281,16 +327,18 @@ int send_data(const char *dest_addr,int port){
 	/* Flags */
 	int end_of_data=0; /* flag to detect end of data */
 	int try_end_communication = 0; /* Number of attemps to terminate properly the connection */
+	/* Initialising time out */
+	time_out.tv_sec = TIME_SEC;
+	time_out.tv_usec = TIME_USEC;
 	while(1){
 		if(end_of_data && actual_size_buffer == 0){ 
-			fprintf(stderr,"Entering end-of-communication routines for the %d times\n",try_end_communication);
+			fprintf(stderr,"Entering end-of-communication routines for the %d times\n",try_end_communication+1);
 			fflush(stderr);
 			if(try_end_communication == 2){
 				fprintf(stderr,"No acknowledgment receive after 3 end-of-communication packet. Disconnecting...\n");
 				int down = close(sfd);
 				if(down == -1){
 					fprintf(stderr,"Error while closing socket : %s\n",strerror(errno));
-					close(sfd);
 					return -1;
 				}
 				return 0;
@@ -304,8 +352,12 @@ int send_data(const char *dest_addr,int port){
 			tv.tv_usec = time_out.tv_usec;
 		}
 		else if(head.tqh_first != NULL){
-			tv.tv_sec = (head.tqh_first)->end_time->tv_sec;
-			tv.tv_usec = (head.tqh_first)->end_time->tv_usec;
+			if(set_timer(&tv,&head) == -1)
+				continue;
+		}
+		else{
+			tv.tv_sec = 0;
+			tv.tv_usec = 0;
 		}
 		FD_SET(fileno(stdin),&readfds);
 		FD_SET(sfd,&readfds);
@@ -317,6 +369,8 @@ int send_data(const char *dest_addr,int port){
 		}
 		if(rv == 0){
 			resend_data(sfd,&head);
+			FD_CLR(fileno(stdin),&readfds);
+			FD_CLR(sfd,&readfds);
 			continue;
 		}
 		/* Receiving ack */
@@ -330,14 +384,19 @@ int send_data(const char *dest_addr,int port){
 			pkt_t *pkt = pkt_new();
 			if(pkt_decode(ack_buffer,nBytes,pkt) != PKT_OK){
 				fprintf(stderr,"Error while decoding an ack. Discarded\n");
+				FD_CLR(fileno(stdin),&readfds);
+				FD_CLR(sfd,&readfds);
 				continue;
 			}
 			else if(is_old_ack(pkt)){
 				fprintf(stderr,"Receiving old ack. Discared\n");
+				FD_CLR(fileno(stdin),&readfds);
+				FD_CLR(sfd,&readfds);
 				continue;
 			}
 			else{
 				if(end_of_data && actual_size_buffer == 0){
+					pkt_del(pkt);
 					int down = close(sfd);
 					fprintf(stderr,"receiving ack for end-of-communication packet. Closing connection\n");
 					fflush(stderr);
@@ -364,6 +423,7 @@ int send_data(const char *dest_addr,int port){
 					alarm(0);
 				}
 			}
+			pkt_del(pkt);
 		}
 		/* Data ready to be read on stdin and send to the dest */
 		if(FD_ISSET(fileno(stdin),&readfds) && window_receiver != 0 && pkt_count <= window_receiver && actual_size_buffer <= MAX_WINDOW_SIZE){
@@ -385,5 +445,7 @@ int send_data(const char *dest_addr,int port){
 			}
 		}
 		resend_data(sfd,&head);
+		FD_CLR(fileno(stdin),&readfds);
+		FD_CLR(sfd,&readfds);
 	}
 }
