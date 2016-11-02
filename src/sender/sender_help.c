@@ -1,6 +1,6 @@
 #define _DEFAULT_SOURCE
 #include "sender_help.h"
-#define DEBUG_HELP 1
+#define DEBUG_HELP 0
 #define MASK_LESS_BITS(k,n) (k & ((1 << n) -1)) /*Mask to get the n last bit of k */
 uint8_t next_seqnum = 0; /* The next sequence number that will be used */
 int window_receiver = 1; /* window size of the receiver */
@@ -112,10 +112,29 @@ static void increase_to(){
 /**
   * This function shall decrease the time out
   */
-static void decrease_to(){
-	long timeInMs = (time_out.tv_sec*1000000 +time_out.tv_usec)/DECREM_TIME_OUT;
-	struct timeval tmp = {timeInMs/1000000,timeInMs - timeInMs/1000000};
-	timersub(&time_out,&tmp,&time_out);
+static void decrease_to(pkt_t *pkt){
+	struct timeval pkt_time = {MASK_LESS_BITS(pkt->timestamp >> 20,12)+MASK_LESS_BITS(time_out.tv_sec,12),MASK_LESS_BITS(pkt->timestamp,20)+MASK_LESS_BITS(time_out.tv_usec,20)},current_time,tmp;
+	if(pkt_time.tv_usec >= 1000000){
+		pkt_time.tv_sec += pkt_time.tv_usec / 1000000;
+		pkt_time.tv_usec -= (pkt_time.tv_usec / 1000000) * 1000000;
+	}
+	int err = gettimeofday(&current_time,NULL);
+	if(err != 0){
+		fprintf(stderr,"Error while getting time of day before decreasing time out. Aborting\n");
+		return;
+	}
+	if((MASK_LESS_BITS(pkt_time.tv_sec,13) & (1 << 13)) != 0)
+		tmp.tv_sec = MASK_LESS_BITS(pkt_time.tv_sec,13) - MASK_LESS_BITS(current_time.tv_sec,13);
+	else
+		tmp.tv_sec = MASK_LESS_BITS(pkt_time.tv_sec,12)- MASK_LESS_BITS(current_time.tv_sec,12);
+	tmp.tv_usec = MASK_LESS_BITS(pkt_time.tv_sec,20) - MASK_LESS_BITS(current_time.tv_sec,20);
+	if(tmp.tv_usec < 0){
+		tmp.tv_sec --;
+		tmp.tv_usec += 999999;
+	}
+	long timeInMs = (tmp.tv_sec*1000000 +tmp.tv_usec)/DECREM_TIME_OUT;
+	struct timeval decrem = {timeInMs/1000000,timeInMs - timeInMs/1000000};
+	timersub(&time_out,&decrem,&time_out);
 	if(time_out.tv_sec < TIME_SEC || (time_out.tv_sec == TIME_SEC && time_out.tv_sec < TIME_USEC)){
 		time_out.tv_sec = TIME_SEC;
 		time_out.tv_usec = TIME_USEC;
@@ -195,9 +214,9 @@ static void remove_from_queue(int lo,int hi,struct stailhead *head){
 		struct entry *next = itr->entries.tqe_next;
 		if(pkt_get_seqnum(itr->pkt) < hi && pkt_get_seqnum(itr->pkt) >= lo){
 			TAILQ_REMOVE(head,itr,entries);
+			decrease_to(itr->pkt); /* Decreasing the time out */
 			pkt_del(itr->pkt);
 			free(itr);
-			decrease_to(); /* Decreasing the time out */
 			actual_size_buffer--;
 		}
 		itr = next;
@@ -212,9 +231,6 @@ static void remove_from_queue(int lo,int hi,struct stailhead *head){
   * @return -
   */
 static void acknowledge_pkt(uint8_t last_seqnum,struct stailhead *head){
-	if(DEBUG_HELP){
-		fprintf(stderr,"next_expected : %"PRIu8" ; last_seqnum : %"PRIu8"\n",next_expected,last_seqnum);
-	}
 	if(last_seqnum == 0 && next_expected != 0){
 		remove_from_queue(next_expected,256,head);
 	}
@@ -406,9 +422,6 @@ int send_data(const char *dest_addr,int port){
 				continue;
 			}
 			else{
-				if(DEBUG_HELP){
-					fprintf(stderr,"Receiving ack for pkt %"PRIu8"\n",pkt_get_seqnum(pkt));
-				}
 				if(end_of_data && actual_size_buffer == 0){
 					pkt_del(pkt);
 					int down = close(sfd);
