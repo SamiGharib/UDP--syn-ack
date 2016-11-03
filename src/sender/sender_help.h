@@ -29,18 +29,11 @@
 
 #ifndef __SENDER_H_
 #define __SENDER_H_
-#ifndef __STRUCT_FRAME_
-#define __STRUCT_FRAME_
-struct pkt_time{
-		pkt_t *pkt;
-		struct timeval_t *tv;
-}pkt_time_t;
-#endif
 
 #ifndef __CONST_SENDER_
 #define __CONST_SENDER_
 /* Time out time */
-#define TIME_SEC 2
+#define TIME_SEC 0
 #define TIME_USEC 500000
 /* Max time out -> 3*Max_Round_trip_time */
 #define MAX_TIME_SEC 6
@@ -49,7 +42,7 @@ struct pkt_time{
 #define DECREM_TIME_OUT 10 /* 10 percent */
 #define INCREM_TIME_OUT 5 /* 20 percent */
 /* MSL */
-#define MSL_SEC 510 /* 255 seqnum * 2sec */
+#define MSL_SEC 4
 #define MSL_USEC 0
 #endif
 

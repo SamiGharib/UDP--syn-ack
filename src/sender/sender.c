@@ -14,7 +14,15 @@ int main(int argc, char *argv[]){
 						return -1;
 				}
 		}
-		char *hostname = argv[optind];
-		int port = atoi(argv[optind+1]);
+		char *hostname;
+		int port;
+		if(optind == 3){
+			hostname = argv[optind];
+			port = atoi(argv[optind+1]);
+		}
+		else{
+			hostname = argv[1];
+			port = atoi(argv[2]);
+		}
 		return send_data(hostname,port);
 }
