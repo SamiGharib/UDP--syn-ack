@@ -71,6 +71,9 @@ static int send_packet(int sfd,uint8_t *data,uint16_t length,struct stailhead *h
 		return -1;
 	}
 	pkt->timestamp = (((uint32_t)MASK_LESS_BITS(ts.tv_sec,12)) << 20) | (uint32_t)MASK_LESS_BITS(ts.tv_usec,20);
+	if(DEBUG_HELP){
+		fprintf(stderr,"Sending packet %"PRIu8" with seqnum %d s %d us\n",pkt_get_seqnum(pkt),pkt_get_timestamp(pkt)>>20,MASK_LESS_BITS(pkt_get_timestamp(pkt),12));
+	}
 	size_t len = MAX_DATA_PACKET_SIZE;
 	uint8_t data_toSend[MAX_DATA_PACKET_SIZE];
 	memset((void *)data_toSend,0,MAX_DATA_PACKET_SIZE*sizeof(uint8_t));
@@ -185,11 +188,6 @@ static int resend_data(int sfd,struct stailhead *head){
 				fprintf(stderr,"Error while encoding packet for re-sending\n");
 				return -1;
 			}
-			ssize_t b = send(sfd,(void *)buf,len,0);
-			if(b == -1){
-				fprintf(stderr,"Error while re-sending data over the socket : %s\n",strerror(errno));
-				return -1;
-			}
 			struct timeval ct;
 			int err = gettimeofday(&ct,NULL);
 			if(err != 0){
@@ -197,6 +195,14 @@ static int resend_data(int sfd,struct stailhead *head){
 				return -1;
 			}
 			pkt_set_timestamp(itr->pkt,((uint32_t)(MASK_LESS_BITS(ct.tv_sec,12)) << 20) |(uint32_t)MASK_LESS_BITS(ct.tv_usec,20));
+			ssize_t b = send(sfd,(void *)buf,len,0);
+			if(DEBUG_HELP){
+				fprintf(stderr,"Sending packet %"PRIu8" with timestamp %d s %d us\n",pkt_get_seqnum(itr->pkt),pkt_get_timestamp(itr->pkt)>>20,MASK_LESS_BITS(pkt_get_timestamp(itr->pkt),12));
+			}
+			if(b == -1){
+				fprintf(stderr,"Error while re-sending data over the socket : %s\n",strerror(errno));
+				return -1;
+			}
 			TAILQ_REMOVE(head,itr,entries);
 			TAILQ_INSERT_TAIL(head,itr,entries);
 			if(first){
@@ -261,17 +267,22 @@ static int is_old_ack(pkt_t *pkt){
 			return 1;
 	}
 	struct timeval current_time;
+	/* UNCOMMENT IF A SOLUTION IS FIND 
 	int err = gettimeofday(&current_time,NULL);
 	if(err != 0)
 		return -1;
-	uint32_t ts = (uint32_t)pkt->timestamp >> 20, tus = (uint32_t)MASK_LESS_BITS(pkt->timestamp,20);
+	uint32_t ts = ((uint32_t)pkt->timestamp >> 20), tus = (uint32_t)MASK_LESS_BITS(pkt->timestamp,20);
 	uint32_t cs = (uint32_t)MASK_LESS_BITS(current_time.tv_sec,12), cus =(uint32_t) MASK_LESS_BITS(current_time.tv_usec,20);
 	uint32_t sec = cs - ts;
 	uint32_t usec = cus -tus;
 	if( sec > MSL_SEC || (sec == MSL_SEC && usec >= MSL_USEC)){
-		fprintf(stderr,"Ack has spent to much time in the network (%u %u). Discarded\n",sec,usec);
+		if(DEBUG_HELP){
+			fprintf(stderr,"%"PRIu32" %"PRIu32"\n",cs,cus);
+			fprintf(stderr,"%"PRIu32" %"PRIu32"\n",ts,tus);
+		}
+		fprintf(stderr,"Ack (%"PRIu8") has spent to much time in the network (%u %u). Discarded\n",pkt_get_seqnum(pkt)-1,sec,usec);
 		return 1;
-	}
+	}*/
 	return 0;
 }
 
@@ -389,10 +400,6 @@ int send_data(const char *dest_addr,int port){
 		}
 		FD_SET(fileno(stdin),&readfds);
 		FD_SET(sfd,&readfds);
-		if(DEBUG_HELP){
-			fprintf(stderr,"timer : %ld %ld\n",tv.tv_sec,tv.tv_usec);
-			fflush(stderr);
-		}
 		int rv = select(sfd+1,&readfds,NULL,NULL,&tv);
 		if(rv == -1){
 			fprintf(stderr,"Error while multiplexing the socket and stdin : %s\n",strerror(errno));
@@ -400,6 +407,7 @@ int send_data(const char *dest_addr,int port){
 			return -1;
 		}
 		if(rv == 0 && head.tqh_first != NULL){
+			fprintf(stderr,"TO\n");
 			resend_data(sfd,&head);
 			FD_CLR(fileno(stdin),&readfds);
 			FD_CLR(sfd,&readfds);
@@ -407,10 +415,6 @@ int send_data(const char *dest_addr,int port){
 		}
 		/* Receiving ack */
 		if(FD_ISSET(sfd,&readfds)){
-			if(DEBUG_HELP){
-				fprintf(stderr,"ack received\n");
-				fflush(stderr);
-			}
 			nBytes = recv(sfd,(char *)ack_buffer,INFO_PACKET_SIZE,0);
 			if(nBytes == -1){
 				fprintf(stderr,"Errror while reading data from the socket : %s\n",strerror(errno));
@@ -464,10 +468,6 @@ int send_data(const char *dest_addr,int port){
 		}
 		/* Data ready to be read on stdin and send to the dest */
 		if(FD_ISSET(fileno(stdin),&readfds) && window_receiver != 0 && pkt_count <= window_receiver && actual_size_buffer <= MAX_WINDOW_SIZE){
-			if(DEBUG_HELP){
-				fprintf(stderr,"data ready to be sent\n");
-				fflush(stderr);
-			}
 			nBytes = read(fileno(stdin),(char *)data_buffer,MAX_PAYLOAD_SIZE);
 			if(nBytes == -1){
 				fprintf(stderr,"Error while reading the data from stdin: %s. Terminating the connection\n",strerror(errno));

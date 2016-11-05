@@ -128,9 +128,11 @@ Voici la liste de nos tests  d'interopérabilité ainsi que leur résultat:
 \item Groupe 35 (Florian Fitvoye \& Vincent Vandervilt) : tout les tests passent du premier coup, aucune erreurs.
 \end{itemize}
 
+	Remarquons que nos deux programmes ont été lancés avec \textit{Valgrind} et que aucun memory leak n'est donc possible.
+
 \section{Changement du \textit{sender}}
 
-	Plusieurs changements/améliorations ont été apportée à l'algorithme du \textit{sender} par rapport à la première version remise. Ces changements visaient particulièrement à augmenter les performances, diminuer l'utilisation de la mémoire ou encore avoir un meilleurs \textit{retransmission timer}. Voici les différents changement opérer:
+	Plusieurs changements/améliorations ont été apportée à l'algorithme du \textit{sender} par rapport à la première version remise. Ces changements visaient particulièrement à augmenter les performances, diminuer l'utilisation de la mémoire ou encore avoir un meilleurs (plus cohérent) \textit{retransmission timer}. Voici les différents changement opérer:
 	\begin{itemize}
 		\item Utilisation du champ \textit{timestamp}. Dans la première version, le \textit{timestamp} n'était pas utilisé et nous gardions, parallèlement au paquet envoyé, une \pkg{struct timeval} pour garder en mémoire le moment où le le paquet a été envoyé. Dans la version finale, nous utilisons le champ \textit{timestamp} de la manière suivante : nous récupérons le temps via l'appel \op{gettimeofday()}. Nous prenons les 12 bits de poids faibles du champs \pkg{tv\_sec} et les 20 bits de poids faibles du champ \pkg{tv\_usec} pour les combiner dans le champs \textit{timestamp} (les 12 bits des secondes seront les 12 bits de poids fort).
 		
@@ -138,11 +140,10 @@ Voici la liste de nos tests  d'interopérabilité ainsi que leur résultat:
 		
 		\item Amélioration de la diminution du \textit{retransmission timeout} (RTO). Dans la première version, l'augmentation et la diminution du RTO se faisaient par rapport à une fraction de celui-ci. Cependant, lorsque l'on diminue le RTO (quand un paquet est acquitté), la diminution se fait maintenant par rapport à une fraction du temps qu'il restait au paquet avant qu'il ne \textit{time out}. Par exemple, si un paquet est acquitté $1\mu s$ avant qu'il ne \textit{time out}, il faut moins diminuer le RTO que si il est acquitté 1 seconde avant de \textit{time out}.
 		
-		\item Amélioration de la vérification des anciens acquittement. La vérification des segment se fait maintenant via trois axes:
+		\item Amélioration de la vérification des anciens acquittement. La vérification des segment se fait maintenant via deux axes:
 			\begin{enumerate}
 				\item Vérification de l'acquittement via le CRC
 				\item Vérification que l'acquittement correspond à un paquet qui peut potentiellement se trouver dans la fenêtre de réception.
-				\item Vérification que ce n'est pas un ancien segment grâce au champ timestamp qui nous donne une indication de quand le paquet a été envoyé. Si il a été envoyé il y a plus de MSL seconde, l'acquittement est considérer comme un ancien acquittement.
 			\end{enumerate}
 		\item Enfin, le \textit{timer} utilisé par l'appel \op{select()} a été optimisé. Il est paramétré au temps restant avant que le premier paquet insérer dans la queue (celui qui se trouve à la tête de la queue) doive être renvoyé. Nous savons donc que si l'appel à \op{select()} renvoie 0, on peut directement renvoyé le paquet et refaire un appel à \op{select()}.
 	\end{itemize}
